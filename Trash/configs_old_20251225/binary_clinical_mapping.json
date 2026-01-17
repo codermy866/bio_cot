@@ -1,0 +1,6 @@
+{
+  "positive_labels": ["CIN3", "HSIL", "Cancer", "CIN3+"],
+  "negative_labels": ["NILM", "Inflammation"],
+  "ambiguous_labels": ["ASC-US", "LSIL"],
+  "ambiguous_policy": "exclude"  
+}

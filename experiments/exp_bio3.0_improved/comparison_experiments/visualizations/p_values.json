@@ -1,0 +1,32 @@
+{
+  "auc": {
+    "baseline_standard_clip_test_vs_baseline_vit_clinical_fusion_test": 1.0,
+    "baseline_standard_clip_test_vs_baseline_simple_fusion_test": 1.0,
+    "baseline_vit_clinical_fusion_test_vs_baseline_simple_fusion_test": 1.0
+  },
+  "accuracy": {
+    "baseline_standard_clip_test_vs_baseline_vit_clinical_fusion_test": 1.0,
+    "baseline_standard_clip_test_vs_baseline_simple_fusion_test": 1.0,
+    "baseline_vit_clinical_fusion_test_vs_baseline_simple_fusion_test": 1.0
+  },
+  "precision": {
+    "baseline_standard_clip_test_vs_baseline_vit_clinical_fusion_test": 1.0,
+    "baseline_standard_clip_test_vs_baseline_simple_fusion_test": 1.0,
+    "baseline_vit_clinical_fusion_test_vs_baseline_simple_fusion_test": 1.0
+  },
+  "recall": {
+    "baseline_standard_clip_test_vs_baseline_vit_clinical_fusion_test": 1.0,
+    "baseline_standard_clip_test_vs_baseline_simple_fusion_test": 1.0,
+    "baseline_vit_clinical_fusion_test_vs_baseline_simple_fusion_test": 1.0
+  },
+  "specificity": {
+    "baseline_standard_clip_test_vs_baseline_vit_clinical_fusion_test": 1.0,
+    "baseline_standard_clip_test_vs_baseline_simple_fusion_test": 1.0,
+    "baseline_vit_clinical_fusion_test_vs_baseline_simple_fusion_test": 1.0
+  },
+  "f1_score": {
+    "baseline_standard_clip_test_vs_baseline_vit_clinical_fusion_test": 1.0,
+    "baseline_standard_clip_test_vs_baseline_simple_fusion_test": 1.0,
+    "baseline_vit_clinical_fusion_test_vs_baseline_simple_fusion_test": 1.0
+  }
+}

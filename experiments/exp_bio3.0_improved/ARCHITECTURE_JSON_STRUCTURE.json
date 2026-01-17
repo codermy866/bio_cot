@@ -1,0 +1,522 @@
+{
+  "architecture_name": "Bio-COT 3.0: Knowledge Notes Guided Causal Optimal Transport Architecture",
+  "version": "3.0",
+  "layout": {
+    "width": 2000,
+    "height": 1400,
+    "orientation": "horizontal"
+  },
+  "modules": [
+    {
+      "id": "input_oct",
+      "name": "OCT Images",
+      "type": "input",
+      "position": {"x": 50, "y": 200, "width": 150, "height": 80},
+      "content": {
+        "title": "OCT Images",
+        "dimension": "[B, F, C, H, W]",
+        "description": "Optical Coherence Tomography images"
+      },
+      "style": {
+        "fillColor": "#E8F4F8",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 11,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "input_colpo",
+      "name": "Colposcopy Images",
+      "type": "input",
+      "position": {"x": 50, "y": 320, "width": 150, "height": 80},
+      "content": {
+        "title": "Colposcopy Images",
+        "dimension": "[B, N, C, H, W]",
+        "description": "Colposcopy images"
+      },
+      "style": {
+        "fillColor": "#E8F4F8",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 11,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "input_clinical",
+      "name": "Clinical Data",
+      "type": "input",
+      "position": {"x": 50, "y": 440, "width": 150, "height": 80},
+      "content": {
+        "title": "Clinical Data",
+        "data": "(HPV, TCT, Age)",
+        "description": "Patient clinical information"
+      },
+      "style": {
+        "fillColor": "#E8F4F8",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 11,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "vit_oct",
+      "name": "ViT Encoder (OCT)",
+      "type": "encoder",
+      "position": {"x": 250, "y": 200, "width": 150, "height": 80},
+      "content": {
+        "title": "ViT Encoder",
+        "subtitle": "(OCT)",
+        "output": "f_oct [B, 196, 768]",
+        "description": "Vision Transformer encoder for OCT images"
+      },
+      "style": {
+        "fillColor": "#F0F8E8",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 11,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "vit_colpo",
+      "name": "ViT Encoder (Colposcopy)",
+      "type": "encoder",
+      "position": {"x": 250, "y": 320, "width": 150, "height": 80},
+      "content": {
+        "title": "ViT Encoder",
+        "subtitle": "(Colposcopy)",
+        "output": "f_colpo [B, 196, 768]",
+        "description": "Vision Transformer encoder for Colposcopy images"
+      },
+      "style": {
+        "fillColor": "#F0F8E8",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 11,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "kb",
+      "name": "Medical Knowledge Base",
+      "type": "knowledge",
+      "position": {"x": 250, "y": 440, "width": 80, "height": 80},
+      "content": {
+        "title": "Medical",
+        "subtitle": "Knowledge",
+        "subtitle2": "Base",
+        "description": "Structured medical guidelines database"
+      },
+      "style": {
+        "fillColor": "#FFF4E6",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "rag",
+      "name": "RAG Retrieval",
+      "type": "knowledge",
+      "position": {"x": 340, "y": 440, "width": 80, "height": 80},
+      "content": {
+        "title": "RAG",
+        "subtitle": "Retrieval",
+        "description": "Retrieval-Augmented Generation"
+      },
+      "style": {
+        "fillColor": "#FFF4E6",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "kn_embed",
+      "name": "Knowledge Notes Embedding",
+      "type": "knowledge",
+      "position": {"x": 450, "y": 440, "width": 150, "height": 80},
+      "content": {
+        "title": "Knowledge Notes",
+        "subtitle": "Embedding",
+        "output": "z_sem [B, 768]",
+        "description": "Semantic anchor from knowledge notes"
+      },
+      "style": {
+        "fillColor": "#FFF4E6",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "cross_attn",
+      "name": "Cross-Modal Attention",
+      "type": "visual",
+      "position": {"x": 450, "y": 320, "width": 150, "height": 80},
+      "content": {
+        "title": "Cross-Modal",
+        "subtitle": "Attention",
+        "formula": "A = softmax(QK^T/√d)",
+        "description": "Attention between image features and knowledge notes"
+      },
+      "style": {
+        "fillColor": "#E6F3FF",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "vn_oct",
+      "name": "Visual Notes (OCT)",
+      "type": "visual",
+      "position": {"x": 650, "y": 200, "width": 150, "height": 80},
+      "content": {
+        "title": "Visual Notes",
+        "subtitle": "(OCT)",
+        "output": "A_oct [B, 196, 1]",
+        "description": "Attention map for OCT images"
+      },
+      "style": {
+        "fillColor": "#E6F3FF",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "vn_colpo",
+      "name": "Visual Notes (Colposcopy)",
+      "type": "visual",
+      "position": {"x": 650, "y": 320, "width": 150, "height": 80},
+      "content": {
+        "title": "Visual Notes",
+        "subtitle": "(Colposcopy)",
+        "output": "A_colpo [B, 196, 1]",
+        "description": "Attention map for Colposcopy images"
+      },
+      "style": {
+        "fillColor": "#E6F3FF",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "causal_head",
+      "name": "Causal Head Encoder",
+      "type": "causal",
+      "position": {"x": 850, "y": 180, "width": 180, "height": 100},
+      "content": {
+        "title": "Causal Head",
+        "subtitle": "Encoder",
+        "output": "z_causal [B, 768]",
+        "property": "Domain-invariant",
+        "description": "Disease-related causal features"
+      },
+      "style": {
+        "fillColor": "#FFE6E6",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "noise_head",
+      "name": "Noise Head Encoder",
+      "type": "noise",
+      "position": {"x": 850, "y": 300, "width": 180, "height": 100},
+      "content": {
+        "title": "Noise Head",
+        "subtitle": "Encoder",
+        "output": "z_noise [B, 768]",
+        "property": "Domain-variant",
+        "description": "Center-specific noise features"
+      },
+      "style": {
+        "fillColor": "#E6E6E6",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "fusion",
+      "name": "Cross-Attention Fusion",
+      "type": "fusion",
+      "position": {"x": 450, "y": 600, "width": 200, "height": 100},
+      "content": {
+        "title": "Cross-Attention",
+        "subtitle": "Fusion",
+        "input": "z_causal + z_sem",
+        "output": "z_fused [B, 768]",
+        "description": "Fusion of causal features and semantic anchors"
+      },
+      "style": {
+        "fillColor": "#F5E6FF",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "ot",
+      "name": "Sinkhorn Optimal Transport",
+      "type": "ot",
+      "position": {"x": 700, "y": 600, "width": 150, "height": 100},
+      "content": {
+        "title": "Sinkhorn",
+        "subtitle": "OT",
+        "formula": "L_OT = ⟨P, C⟩ + λH(P)",
+        "description": "Optimal transport for domain alignment"
+      },
+      "style": {
+        "fillColor": "#FFF0E6",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "mb",
+      "name": "Memory Bank",
+      "type": "ot",
+      "position": {"x": 700, "y": 750, "width": 150, "height": 80},
+      "content": {
+        "title": "Memory Bank",
+        "subtitle": "(Counterfactual)",
+        "description": "Stores noise features for counterfactual intervention"
+      },
+      "style": {
+        "fillColor": "#FFF0E6",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "classifier",
+      "name": "Classifier",
+      "type": "output",
+      "position": {"x": 900, "y": 600, "width": 150, "height": 100},
+      "content": {
+        "title": "Classifier",
+        "structure": "MLP",
+        "description": "Multi-layer perceptron classifier"
+      },
+      "style": {
+        "fillColor": "#E8F8E8",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 11,
+        "fontWeight": "bold"
+      }
+    },
+    {
+      "id": "output",
+      "name": "Prediction",
+      "type": "output",
+      "position": {"x": 900, "y": 750, "width": 150, "height": 80},
+      "content": {
+        "title": "Prediction",
+        "output": "P(y|x) [B, 2]",
+        "description": "Final classification probability"
+      },
+      "style": {
+        "fillColor": "#E8F8E8",
+        "strokeColor": "#333333",
+        "strokeWidth": 2,
+        "fontSize": 11,
+        "fontWeight": "bold"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "input_oct",
+      "to": "vit_oct",
+      "type": "data_flow",
+      "label": ""
+    },
+    {
+      "from": "input_colpo",
+      "to": "vit_colpo",
+      "type": "data_flow",
+      "label": ""
+    },
+    {
+      "from": "input_clinical",
+      "to": "kb",
+      "type": "data_flow",
+      "label": ""
+    },
+    {
+      "from": "kb",
+      "to": "rag",
+      "type": "data_flow",
+      "label": ""
+    },
+    {
+      "from": "rag",
+      "to": "kn_embed",
+      "type": "data_flow",
+      "label": ""
+    },
+    {
+      "from": "vit_oct",
+      "to": "cross_attn",
+      "type": "data_flow",
+      "label": "f_oct"
+    },
+    {
+      "from": "vit_colpo",
+      "to": "cross_attn",
+      "type": "data_flow",
+      "label": "f_colpo"
+    },
+    {
+      "from": "kn_embed",
+      "to": "cross_attn",
+      "type": "data_flow",
+      "label": "z_sem"
+    },
+    {
+      "from": "cross_attn",
+      "to": "vn_oct",
+      "type": "data_flow",
+      "label": "A_oct"
+    },
+    {
+      "from": "cross_attn",
+      "to": "vn_colpo",
+      "type": "data_flow",
+      "label": "A_colpo"
+    },
+    {
+      "from": "vn_oct",
+      "to": "causal_head",
+      "type": "data_flow",
+      "label": "f_masked"
+    },
+    {
+      "from": "vn_colpo",
+      "to": "noise_head",
+      "type": "data_flow",
+      "label": "f_masked"
+    },
+    {
+      "from": "causal_head",
+      "to": "fusion",
+      "type": "data_flow",
+      "label": "z_causal"
+    },
+    {
+      "from": "kn_embed",
+      "to": "fusion",
+      "type": "data_flow",
+      "label": "z_sem"
+    },
+    {
+      "from": "fusion",
+      "to": "ot",
+      "type": "data_flow",
+      "label": "z_fused"
+    },
+    {
+      "from": "ot",
+      "to": "classifier",
+      "type": "data_flow",
+      "label": ""
+    },
+    {
+      "from": "classifier",
+      "to": "output",
+      "type": "data_flow",
+      "label": ""
+    },
+    {
+      "from": "mb",
+      "to": "ot",
+      "type": "bidirectional",
+      "label": "Counterfactual"
+    }
+  ],
+  "loss_functions": {
+    "total_loss": "L_total = λ_cls·L_cls + λ_ot·L_ot + λ_sparse·L_sparse + λ_consist·L_consist + λ_adv·L_adv",
+    "components": [
+      {
+        "name": "Classification Loss",
+        "symbol": "L_cls",
+        "weight": "λ_cls = 2.0",
+        "description": "Cross-entropy loss for classification"
+      },
+      {
+        "name": "OT Loss",
+        "symbol": "L_ot",
+        "weight": "λ_ot = 0.5",
+        "description": "Sinkhorn optimal transport loss"
+      },
+      {
+        "name": "Sparse Loss",
+        "symbol": "L_sparse",
+        "weight": "λ_sparse = 0.01",
+        "description": "L1 + Entropy loss for attention sparsity"
+      },
+      {
+        "name": "Consistency Loss",
+        "symbol": "L_consist",
+        "weight": "λ_consist = 0.2",
+        "description": "Counterfactual consistency loss"
+      },
+      {
+        "name": "Adversarial Loss",
+        "symbol": "L_adv",
+        "weight": "λ_adv = 0.5",
+        "description": "Adversarial loss for domain discrimination"
+      }
+    ]
+  },
+  "key_innovations": [
+    {
+      "name": "Knowledge Notes",
+      "description": "RAG-based semantic enhancement from medical knowledge base",
+      "color": "#FFF4E6"
+    },
+    {
+      "name": "Visual Notes",
+      "description": "Knowledge-guided attention masking for lesion localization",
+      "color": "#E6F3FF"
+    },
+    {
+      "name": "Dual-Head Encoder",
+      "description": "Causal/noise feature decoupling for domain-invariant learning",
+      "color": "#FFE6E6/#E6E6E6"
+    },
+    {
+      "name": "Optimal Transport",
+      "description": "Sinkhorn OT for cross-center domain alignment",
+      "color": "#FFF0E6"
+    },
+    {
+      "name": "Memory Bank",
+      "description": "Counterfactual intervention for causal consistency",
+      "color": "#FFF0E6"
+    }
+  ]
+}
+

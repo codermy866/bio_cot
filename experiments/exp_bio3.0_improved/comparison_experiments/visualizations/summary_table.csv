@@ -1,0 +1,4 @@
+Experiment,auc,accuracy,precision,recall,specificity,f1_score
+baseline_standard_clip_test,0.8167±0.0000,0.7738±0.0000,0.7678±0.0000,0.7738±0.0000,0.9115±0.0000,0.7600±0.0000
+baseline_vit_clinical_fusion_test,0.8162±0.0000,0.8036±0.0000,0.8067±0.0000,0.8036±0.0000,0.9469±0.0000,0.7887±0.0000
+baseline_simple_fusion_test,0.8121±0.0000,0.6369±0.0000,0.7398±0.0000,0.6369±0.0000,0.5398±0.0000,0.6453±0.0000

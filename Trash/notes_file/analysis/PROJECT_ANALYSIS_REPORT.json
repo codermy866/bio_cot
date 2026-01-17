@@ -1,0 +1,145 @@
+{
+  "analysis": {
+    "root_dirs": [
+      "results",
+      "experiments",
+      "visualization",
+      "src",
+      "configs",
+      "docs",
+      "scripts",
+      "backup_before_reorganize",
+      "training",
+      "my_retfound",
+      "tests",
+      "paper1_hierarchical_multimodal",
+      "exp1_Causal_Bayesian_clip",
+      "analysis",
+      "util",
+      "figures",
+      "models",
+      "lancet_primary_care",
+      "data",
+      "utils"
+    ],
+    "root_files": [
+      "requirements.txt",
+      "TECHNICAL_WORK_SUMMARY.md",
+      "DEEP_TECHNICAL_ANALYSIS.md",
+      "PROJECT_ANALYSIS_REPORT.json",
+      "setup.py",
+      "LICENSE",
+      "requirements_enhanced.txt",
+      "README.md",
+      "TECHNICAL_MODULES_ANALYSIS.md",
+      "final_reorganize_optimized.py",
+      "README_GITHUB.md",
+      "REGULARIZATION_OPTIMIZATION.md",
+      "analyze_and_cleanup.py",
+      "EXPERIMENTAL_METHODS.md",
+      "CAUSAL_CONSTRAINED_CLIP_DEEP_ANALYSIS.md",
+      "venv_copy.log",
+      "PROJECT_STRUCTURE_ANALYSIS.md"
+    ],
+    "backup_dirs": [
+      "experiments",
+      "src",
+      "configs",
+      "scripts",
+      "training",
+      "analysis",
+      "util",
+      "models",
+      "data",
+      "utils"
+    ],
+    "common_dirs": [
+      "analysis",
+      "configs",
+      "data",
+      "experiments",
+      "models",
+      "scripts",
+      "src",
+      "training",
+      "util",
+      "utils"
+    ],
+    "root_only": [
+      "backup_before_reorganize",
+      "docs",
+      "exp1_Causal_Bayesian_clip",
+      "figures",
+      "lancet_primary_care",
+      "my_retfound",
+      "paper1_hierarchical_multimodal",
+      "results",
+      "tests",
+      "visualization"
+    ],
+    "backup_only": []
+  },
+  "file_categories": {
+    "文档": [
+      "TECHNICAL_WORK_SUMMARY.md",
+      "DEEP_TECHNICAL_ANALYSIS.md",
+      "README.md",
+      "TECHNICAL_MODULES_ANALYSIS.md",
+      "README_GITHUB.md",
+      "REGULARIZATION_OPTIMIZATION.md",
+      "EXPERIMENTAL_METHODS.md",
+      "CAUSAL_CONSTRAINED_CLIP_DEEP_ANALYSIS.md",
+      "PROJECT_STRUCTURE_ANALYSIS.md"
+    ],
+    "脚本": [
+      "setup.py",
+      "final_reorganize_optimized.py",
+      "analyze_and_cleanup.py"
+    ],
+    "配置": [
+      "requirements.txt",
+      "PROJECT_ANALYSIS_REPORT.json",
+      "requirements_enhanced.txt"
+    ],
+    "其他": [
+      "LICENSE",
+      "venv_copy.log"
+    ]
+  },
+  "duplicate_dirs": [
+    "training",
+    "util",
+    "utils",
+    "visualization",
+    "analysis",
+    "models"
+  ],
+  "cleanup_plan": {
+    "files_to_move": {
+      "CAUSAL_CONSTRAINED_CLIP_DEEP_ANALYSIS.md": "docs/paper/MICCAI2025/",
+      "DEEP_TECHNICAL_ANALYSIS.md": "docs/paper/MICCAI2025/",
+      "EXPERIMENTAL_METHODS.md": "docs/paper/MICCAI2025/",
+      "REGULARIZATION_OPTIMIZATION.md": "docs/paper/MICCAI2025/",
+      "TECHNICAL_MODULES_ANALYSIS.md": "docs/paper/MICCAI2025/",
+      "TECHNICAL_WORK_SUMMARY.md": "docs/paper/MICCAI2025/",
+      "final_reorganize_optimized.py": "scripts/"
+    },
+    "dirs_to_cleanup": [
+      "training",
+      "util",
+      "utils",
+      "visualization",
+      "analysis",
+      "models"
+    ],
+    "files_to_keep": [
+      "README.md",
+      "README_GITHUB.md",
+      "LICENSE",
+      "setup.py",
+      "requirements.txt",
+      "requirements_enhanced.txt",
+      ".gitignore"
+    ]
+  }
+}

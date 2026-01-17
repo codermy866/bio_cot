@@ -1,0 +1,56 @@
+{
+  "timestamp": "20260113_145816",
+  "num_samples": 168,
+  "label_distribution": {
+    "negative": 113,
+    "positive": 55
+  },
+  "center_distribution": {
+    "0": 6,
+    "1": 10,
+    "2": 68,
+    "3": 84
+  },
+  "feature_shapes": {
+    "z_causal": [
+      168,
+      768
+    ],
+    "z_noise": [
+      168,
+      768
+    ],
+    "z_sem": [
+      168,
+      768
+    ],
+    "attn_oct": [
+      168,
+      196,
+      1
+    ],
+    "attn_colpo": [
+      168,
+      196,
+      1
+    ],
+    "predictions": [
+      168
+    ],
+    "probabilities": [
+      168,
+      2
+    ],
+    "labels": [
+      168
+    ],
+    "centers": [
+      168
+    ],
+    "knowledge_embeds": [
+      168,
+      1,
+      768
+    ]
+  }
+}

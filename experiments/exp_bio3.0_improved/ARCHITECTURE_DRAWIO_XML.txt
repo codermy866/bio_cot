@@ -1,0 +1,212 @@
+<!--
+Bio-COT 3.0 架构图 - Draw.io XML格式
+使用方法：
+1. 打开 https://app.diagrams.net/ (Draw.io)
+2. File -> Open -> 粘贴此XML内容
+3. 调整样式和布局
+4. 导出为PDF/PNG
+-->
+
+<mxfile host="app.diagrams.net">
+  <diagram name="Bio-COT 3.0 Architecture" id="bio-cot-3.0">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2000" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- 输入层 -->
+        <mxCell id="input_oct" value="OCT Images&#xa;[B, F, C, H, W]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F4F8;strokeColor=#333333;strokeWidth=2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="50" y="200" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="input_colpo" value="Colposcopy Images&#xa;[B, N, C, H, W]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F4F8;strokeColor=#333333;strokeWidth=2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="50" y="320" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="input_clinical" value="Clinical Data&#xa;(HPV, TCT, Age)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F4F8;strokeColor=#333333;strokeWidth=2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="50" y="440" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- ViT编码器 -->
+        <mxCell id="vit_oct" value="ViT Encoder&#xa;(OCT)&#xa;f_oct [B, 196, 768]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F8E8;strokeColor=#333333;strokeWidth=2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="250" y="200" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="vit_colpo" value="ViT Encoder&#xa;(Colposcopy)&#xa;f_colpo [B, 196, 768]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F8E8;strokeColor=#333333;strokeWidth=2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="250" y="320" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Knowledge Notes -->
+        <mxCell id="kb" value="Medical&#xa;Knowledge&#xa;Base" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4E6;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="250" y="440" width="80" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="rag" value="RAG&#xa;Retrieval" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4E6;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="340" y="440" width="80" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="kn_embed" value="Knowledge Notes&#xa;Embedding&#xa;z_sem [B, 768]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4E6;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="450" y="440" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Visual Notes -->
+        <mxCell id="cross_attn" value="Cross-Modal&#xa;Attention&#xa;A = softmax(QK^T/√d)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F3FF;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="450" y="320" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="vn_oct" value="Visual Notes&#xa;(OCT)&#xa;A_oct [B, 196, 1]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F3FF;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="650" y="200" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="vn_colpo" value="Visual Notes&#xa;(Colposcopy)&#xa;A_colpo [B, 196, 1]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F3FF;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="650" y="320" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Dual-Head -->
+        <mxCell id="causal_head" value="Causal Head&#xa;Encoder&#xa;z_causal [B, 768]&#xa;(Domain-invariant)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6E6;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="850" y="180" width="180" height="100" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="noise_head" value="Noise Head&#xa;Encoder&#xa;z_noise [B, 768]&#xa;(Domain-variant)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6E6E6;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="850" y="300" width="180" height="100" as="geometry" />
+        </mxCell>
+        
+        <!-- Fusion -->
+        <mxCell id="fusion" value="Cross-Attention&#xa;Fusion&#xa;z_causal + z_sem&#xa;z_fused [B, 768]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5E6FF;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="450" y="600" width="200" height="100" as="geometry" />
+        </mxCell>
+        
+        <!-- OT -->
+        <mxCell id="ot" value="Sinkhorn&#xa;OT&#xa;L_OT = ⟨P, C⟩ + λH(P)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0E6;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="700" y="600" width="150" height="100" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="mb" value="Memory Bank&#xa;(Counterfactual)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0E6;strokeColor=#333333;strokeWidth=2;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="700" y="750" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Classifier -->
+        <mxCell id="classifier" value="Classifier&#xa;MLP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F8E8;strokeColor=#333333;strokeWidth=2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="900" y="600" width="150" height="100" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="output" value="Prediction&#xa;P(y|x) [B, 2]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F8E8;strokeColor=#333333;strokeWidth=2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="900" y="750" width="150" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- 箭头连接 -->
+        <mxCell id="arrow1" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="input_oct" target="vit_oct">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow2" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="input_colpo" target="vit_colpo">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow3" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="input_clinical" target="kb">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow4" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="kb" target="rag">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow5" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="rag" target="kn_embed">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow6" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="vit_oct" target="cross_attn">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow7" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="vit_colpo" target="cross_attn">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow8" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="kn_embed" target="cross_attn">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow9" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cross_attn" target="vn_oct">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow10" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cross_attn" target="vn_colpo">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow11" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="vn_oct" target="causal_head">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow12" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="vn_colpo" target="noise_head">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow13" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="causal_head" target="fusion">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow14" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="kn_embed" target="fusion">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow15" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="fusion" target="ot">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow16" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="ot" target="classifier">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow17" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="classifier" target="output">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow18" value="" style="endArrow=classic;endFill=0;html=1;strokeWidth=2;strokeColor=#666666;exitX=0.5;exitY=0;entryX=0.5;entryY=1;dashed=1;" edge="1" parent="1" source="mb" target="ot">
+          <mxGeometry width="50" height="50" relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- 标题 -->
+        <mxCell id="title" value="Bio-COT 3.0: Knowledge Notes Guided Causal Optimal Transport Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="200" y="50" width="800" height="40" as="geometry" />
+        </mxCell>
+        
+        <!-- 图例 -->
+        <mxCell id="legend_title" value="Legend:" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="50" y="900" width="100" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="legend1" value="Input" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F4F8;strokeColor=#333333;strokeWidth=1;fontSize=9" vertex="1" parent="1">
+          <mxGeometry x="50" y="940" width="80" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="legend2" value="Knowledge Notes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4E6;strokeColor=#333333;strokeWidth=1;fontSize=9" vertex="1" parent="1">
+          <mxGeometry x="140" y="940" width="100" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="legend3" value="Visual Notes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F3FF;strokeColor=#333333;strokeWidth=1;fontSize=9" vertex="1" parent="1">
+          <mxGeometry x="250" y="940" width="100" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="legend4" value="Causal/Noise" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6E6;strokeColor=#333333;strokeWidth=1;fontSize=9" vertex="1" parent="1">
+          <mxGeometry x="360" y="940" width="100" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="legend5" value="Fusion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5E6FF;strokeColor=#333333;strokeWidth=1;fontSize=9" vertex="1" parent="1">
+          <mxGeometry x="470" y="940" width="80" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="legend6" value="OT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0E6;strokeColor=#333333;strokeWidth=1;fontSize=9" vertex="1" parent="1">
+          <mxGeometry x="560" y="940" width="80" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="legend7" value="Output" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F8E8;strokeColor=#333333;strokeWidth=1;fontSize=9" vertex="1" parent="1">
+          <mxGeometry x="650" y="940" width="80" height="30" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+
