@@ -452,7 +452,67 @@ def validate(model, dataloader, criterion, device, epoch, config, log_print=None
 
 def main():
     """主函数"""
+    # 🔥 新增：支持消融实验的命令行参数
+    import argparse
+    parser = argparse.ArgumentParser(description="Bio-COT 4.0 (LACT框架) 训练脚本")
+    parser.add_argument('--ablation', type=str, default='full', 
+                        choices=['baseline', 'no_vlm', 'no_causal', 'full'],
+                        help='消融实验类型: baseline=纯ViT, no_vlm=无VLM引导, no_causal=无因果解耦, full=完整模型')
+    parser.add_argument('--num_epochs', type=int, default=None,
+                        help='训练轮数（覆盖config）')
+    parser.add_argument('--batch_size', type=int, default=None,
+                        help='Batch大小（覆盖config）')
+    args = parser.parse_args()
+    
     config = BioCOT_v4_Config()
+    
+    # 🔥 根据消融实验类型动态修改配置
+    if args.ablation == 'baseline':
+        print("=" * 80)
+        print("🔬 消融实验 A0: Baseline (Naïve ViT)")
+        print("=" * 80)
+        config.use_visual_notes = False
+        config.use_ot = False
+        config.use_dual = False
+        config.use_cross_attn = False
+        config.output_dir = 'results/ablation_baseline'
+        config.checkpoint_dir = 'checkpoints/ablation_baseline'
+        config.log_dir = 'logs/ablation_baseline'
+    elif args.ablation == 'no_vlm':
+        print("=" * 80)
+        print("🔬 消融实验 A1: w/o VLM Guidance (仅因果解耦)")
+        print("=" * 80)
+        config.use_visual_notes = False
+        config.use_ot = False
+        config.use_dual = True
+        config.use_cross_attn = False
+        config.output_dir = 'results/ablation_no_vlm'
+        config.checkpoint_dir = 'checkpoints/ablation_no_vlm'
+        config.log_dir = 'logs/ablation_no_vlm'
+    elif args.ablation == 'no_causal':
+        print("=" * 80)
+        print("🔬 消融实验 A2: w/o Causal Disentangle (仅VLM对齐)")
+        print("=" * 80)
+        config.use_visual_notes = True
+        config.use_ot = True
+        config.use_dual = False
+        config.use_cross_attn = False
+        config.output_dir = 'results/ablation_no_causal'
+        config.checkpoint_dir = 'checkpoints/ablation_no_causal'
+        config.log_dir = 'logs/ablation_no_causal'
+    else:  # full
+        print("=" * 80)
+        print("🚀 Bio-COT 4.0 (Full Model) - 完整模型")
+        print("=" * 80)
+        config.output_dir = 'results/full_model'
+        config.checkpoint_dir = 'checkpoints/full_model'
+        config.log_dir = 'logs/full_model'
+    
+    # 覆盖命令行参数（如果提供）
+    if args.num_epochs is not None:
+        config.num_epochs = args.num_epochs
+    if args.batch_size is not None:
+        config.batch_size = args.batch_size
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = Path(config.log_dir) / f"train_bio_cot_v4_{timestamp}.log"

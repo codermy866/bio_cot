@@ -39,7 +39,7 @@ class VisualNoteLayer(nn.Module):
         self, 
         img_feats: torch.Tensor,  # [B, N, D] (Batch, Patch数量, 维度)
         text_feats: torch.Tensor,  # [B, D] (Batch, 维度)
-        beta: float = 0.1  # 背景抑制系数
+        beta = 0.1  # 背景抑制系数（支持float或Tensor）
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         生成视觉笔记特征
@@ -76,6 +76,18 @@ class VisualNoteLayer(nn.Module):
         attn_map = torch.clamp(attn_map, min=min_attn, max=1.0)  # 硬下界
         
         # --- Step 2: 应用Visual Note（Soft Masking）---
+        # 支持 beta 是 float 或 tensor（用于SCG动态调整）
+        if isinstance(beta, torch.Tensor):
+            beta = beta.to(img_feats.device)
+            # 确保beta的形状是 [B, 1, 1]
+            if beta.dim() == 1:
+                beta = beta.view(-1, 1, 1)
+            elif beta.dim() == 2:
+                beta = beta.unsqueeze(-1)
+        else:
+            # float类型，广播到 [B, 1, 1]
+            beta = torch.tensor(beta, device=img_feats.device, dtype=img_feats.dtype)
+        
         # 核心公式: F_note = F * Mask + F * (1 - Mask) * beta
         # 高响应区域保留 (x 1.0)，低响应区域被抑制 (x beta)
         mask_weight = attn_map + (1 - attn_map) * beta  # [B, N, 1]
@@ -146,7 +158,7 @@ class VisualNotesModule(nn.Module):
         beta: Optional[float] = None  # 如果提供，使用提供的beta；否则使用动态beta
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        生成视觉笔记特征（支持Warm-up）
+        生成视觉笔记特征（支持Warm-up + SCG）
         
         Args:
             img_features: [B, N, D] 图像Patch特征
@@ -158,11 +170,42 @@ class VisualNotesModule(nn.Module):
             attn_map: [B, N, 1] 注意力热图
         """
         if beta is None:
-            beta = self.get_beta()
+            base_beta = self.get_beta()
+        else:
+            base_beta = beta
         
-        # 生成视觉笔记
+        # 🔥 新增：语义一致性门控 (Semantic Consistency Gate, SCG)
+        # 1. 计算图像全局特征
+        img_global = img_features.mean(dim=1)  # [B, D]
+        
+        # 2. 计算图文一致性 (Cosine Similarity)
+        consistency = F.cosine_similarity(img_global, text_features, dim=1)  # [B]
+        
+        # 3. 动态调整 Beta
+        # 逻辑：如果一致性高，信任 Visual Notes (使用 base_beta)
+        #       如果一致性低 (VLM可能幻觉)，退化为保留原图 (Beta -> 1.0)
+        # consistency 范围 [-1, 1], 映射到 [0, 1] 门控系数
+        gate = torch.sigmoid(consistency * 5)  # [B], 放大差异
+        
+        # 动态 Beta: gate * base_beta + (1-gate) * 1.0
+        # 当 gate=1 (一致), dynamic_beta = base_beta (正常过滤)
+        # 当 gate=0 (不一致), dynamic_beta = 1.0 (不过滤)
+        # 确保 base_beta 是 Tensor（如果是float，需要转换）
+        if isinstance(base_beta, (int, float)):
+            base_beta_tensor = torch.full(
+                (img_features.shape[0], 1, 1), 
+                base_beta, 
+                device=img_features.device, 
+                dtype=img_features.dtype
+            )
+        else:
+            base_beta_tensor = base_beta
+        
+        dynamic_beta = gate.view(-1, 1, 1) * base_beta_tensor + (1 - gate.view(-1, 1, 1)) * 1.0
+        
+        # 生成视觉笔记（使用动态beta）
         img_focused, attn_map = self.visual_note_layer(
-            img_features, text_features, beta=beta
+            img_features, text_features, beta=dynamic_beta
         )
         
         return img_focused, attn_map
