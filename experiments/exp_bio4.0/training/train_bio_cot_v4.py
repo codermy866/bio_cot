@@ -48,6 +48,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score, classification_report
 import matplotlib.pyplot as plt
 from datetime import datetime
 import json
+import os  # 🔥 新增：用于创建目录
 from typing import Dict, List
 
 # 添加项目根目录到路径
@@ -605,6 +606,19 @@ def main():
     optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
     criterion = FocalLoss(alpha=0.25, gamma=2.0)
     
+    # ==========================================================
+    # 🛑 修复代码：确保所有保存目录存在
+    # ==========================================================
+    # 确保所有输出目录都存在（防止torch.save时目录不存在报错）
+    os.makedirs(config.output_dir, exist_ok=True)
+    os.makedirs(config.checkpoint_dir, exist_ok=True)
+    os.makedirs(config.log_dir, exist_ok=True)
+    
+    log_print(f"\n✅ 输出目录已创建:")
+    log_print(f"   - 输出目录: {config.output_dir}")
+    log_print(f"   - 检查点目录: {config.checkpoint_dir}")
+    log_print(f"   - 日志目录: {config.log_dir}")
+    
     log_print("\n" + "=" * 80)
     log_print("🚀 开始训练...")
     log_print("=" * 80)
@@ -613,7 +627,7 @@ def main():
     history = {
         'train_loss': [], 'train_acc': [],
         'val_loss': [], 'val_acc': [], 'val_auc': [], 'val_f1': [],
-        'cls_loss': [], 'ot_loss': [], 'sparse_loss': [], 'consist_loss': [], 'adv_loss': []
+        'cls_loss': [], 'ot_loss': [], 'sparse_loss': [], 'consist_loss': [], 'adv_loss': [], 'ortho_loss': []
     }
     
     for epoch in range(1, config.num_epochs + 1):
@@ -637,20 +651,28 @@ def main():
         history['sparse_loss'].append(train_results['sparse_loss'])
         history['consist_loss'].append(train_results['consist_loss'])
         history['adv_loss'].append(train_results['adv_loss'])
+        history['ortho_loss'].append(train_results.get('ortho_loss', 0.0))  # 🔥 确保ortho_loss被记录
         
         if val_results['auc'] > best_auc:
             best_auc = val_results['auc']
             checkpoint_path = Path(config.checkpoint_dir) / f"best_model_v4_{timestamp}.pth"
+            
+            # 🔥🔥🔥 双保险：确保父目录存在 🔥🔥🔥
+            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            
             torch.save({
                 'epoch': epoch, 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(), 'best_auc': best_auc,
                 'config': config.__dict__, 'history': history
             }, checkpoint_path)
             log_print(f"  ✅ 保存最佳模型 (AUC: {best_auc:.4f})")
+            log_print(f"     检查点路径: {checkpoint_path}")
     
     log_print(f"\n✅ 训练完成！最佳AUC: {best_auc:.4f}")
     
     history_file = Path(config.log_dir) / f"training_history_{timestamp}.json"
+    # 🔥 确保目录存在
+    history_file.parent.mkdir(parents=True, exist_ok=True)
     with open(history_file, 'w', encoding='utf-8') as f:
         json.dump(history, f, indent=2)
     log_print(f"📁 训练历史已保存到: {history_file}")
