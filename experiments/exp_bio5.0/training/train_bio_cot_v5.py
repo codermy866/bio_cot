@@ -559,9 +559,20 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     
+    # 🔥 修复VLM缓存路径：使用相对于项目根目录的路径
+    vlm_cache_path = Path(__file__).parent.parent / config.vlm_json_path
+    if not vlm_cache_path.exists():
+        # 尝试从exp_bio4.0复制
+        alt_path = Path(__file__).parent.parent.parent / 'exp_bio4.0' / config.vlm_json_path
+        if alt_path.exists():
+            vlm_cache_path = alt_path
+            log_print(f"⚠️ 使用备用VLM缓存路径: {vlm_cache_path}")
+        else:
+            log_print(f"⚠️ VLM缓存文件未找到: {vlm_cache_path}，将使用默认描述")
+    
     train_dataset = FiveCentersMultimodalDatasetV5(
         csv_path=str(train_csv),
-        vlm_json_path=str(Path(config.log_dir).parent / config.vlm_json_path),
+        vlm_json_path=str(vlm_cache_path) if vlm_cache_path.exists() else None,
         transform=transform,
         oct_num_frames=config.oct_frames,
         max_col_images=config.colposcopy_images,
@@ -571,7 +582,7 @@ def main():
     
     val_dataset = FiveCentersMultimodalDatasetV5(
         csv_path=str(val_csv),
-        vlm_json_path=str(Path(config.log_dir).parent / config.vlm_json_path),
+        vlm_json_path=str(vlm_cache_path) if vlm_cache_path.exists() else None,
         transform=transform,
         oct_num_frames=config.oct_frames,
         max_col_images=config.colposcopy_images,
