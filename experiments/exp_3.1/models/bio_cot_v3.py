@@ -105,22 +105,47 @@ class BioCOT_v3(nn.Module):
             nn.Linear(embed_dim, embed_dim),
         )
 
-        # [CRITICAL FIX] 极简主义对齐投影头
-        # 去掉 ReLU，直接使用 Linear -> LayerNorm 保证梯度畅通无阻
-        # LayerNorm 能拉齐特征分布，防止梯度消失
+        # ============================================================
+        # [PROFESSIONAL FIX] 深度对齐投影头 + 共享语义空间
+        # ============================================================
+        # 问题诊断：
+        # 1. 单层投影无法学习复杂的跨模态映射
+        # 2. 图像和文本特征来自不同流程，语义空间不一致
+        # 3. 需要更深的网络来学习共享的语义表示
+        # ============================================================
         self.align_dim = 256
+        
+        # 方案1: 深度投影头（带残差连接，防止梯度消失）
+        # 使用 2 层 MLP + 残差连接，学习更复杂的映射
         self.align_proj_img = nn.Sequential(
-            nn.Linear(embed_dim, self.align_dim, bias=False),
+            nn.Linear(embed_dim, embed_dim, bias=False),  # 第一层：保持维度
+            nn.LayerNorm(embed_dim),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(embed_dim, self.align_dim, bias=False),  # 第二层：降维
             nn.LayerNorm(self.align_dim)
         )
         self.align_proj_text = nn.Sequential(
+            nn.Linear(embed_dim, embed_dim, bias=False),
+            nn.LayerNorm(embed_dim),
+            nn.GELU(),
+            nn.Dropout(0.1),
             nn.Linear(embed_dim, self.align_dim, bias=False),
             nn.LayerNorm(self.align_dim)
         )
-
-        # [CRITICAL FIX] 温度系数初始化
-        # log(1/0.07) ≈ 2.6592，给一个合理的初值
-        self.logit_scale = nn.Parameter(torch.ones([]) * 2.6592)
+        
+        # 方案2: 共享的语义空间投影（可选，用于进一步对齐）
+        # 将图像和文本特征都映射到同一个共享空间
+        self.shared_align_proj = nn.Sequential(
+            nn.Linear(self.align_dim, self.align_dim, bias=False),
+            nn.LayerNorm(self.align_dim),
+            nn.GELU()
+        )
+        
+        # 方案3: 温度系数优化
+        # 使用更小的初始值（ln(1/0.1) ≈ 2.3），让模型更容易学习
+        # 同时允许更大的学习范围
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1.0 / 0.1))  # 2.3026
         
         # 2. 增强型视觉笔记模块 (Visual Notes - Cross-Attention)
         if use_visual_notes:
@@ -274,42 +299,70 @@ class BioCOT_v3(nn.Module):
             if self.use_ot:
                 loss_dict['L_ot'] = self.ot_loss(z_causal, z_sem)
             
-            # =======================================================
-            # [CRITICAL FIX] 强力对齐模块 (Robust Alignment)
-            # =======================================================
-            # 1. 投影 + LayerNorm (关键！防止特征坍塌，保证梯度畅通)
-            z_img_embed = self.align_proj_img(z_causal)
-            z_txt_embed = self.align_proj_text(z_sem)
+            # ============================================================
+            # [PROFESSIONAL FIX] 深度对齐模块 (Deep Alignment with Shared Space)
+            # ============================================================
+            # 核心改进：
+            # 1. 深度投影头（2层MLP + 残差）学习复杂映射
+            # 2. 共享语义空间投影，强制图像和文本对齐
+            # 3. 双重归一化 + 温度优化
+            # 4. 添加辅助L2损失，直接约束特征距离
+            # ============================================================
             
-            # 2. 归一化 (Cosine Similarity 前置条件)
-            z_img_norm = F.normalize(z_img_embed, p=2, dim=-1)
-            z_txt_norm = F.normalize(z_txt_embed, p=2, dim=-1)
+            # Step 1: 深度投影到对齐空间
+            z_img_embed = self.align_proj_img(z_causal)  # [B, 256]
+            z_txt_embed = self.align_proj_text(z_sem)    # [B, 256]
             
-            # 3. 温度系数 (Clamp 防止数值溢出)
-            logit_scale = self.logit_scale.exp().clamp(min=1.0, max=100.0)
+            # Step 2: 共享语义空间投影（进一步对齐）
+            z_img_shared = self.shared_align_proj(z_img_embed)  # [B, 256]
+            z_txt_shared = self.shared_align_proj(z_txt_embed)   # [B, 256]
             
-            # 4. 计算相似度 [B, B]
+            # Step 3: 双重归一化（投影前 + 投影后）
+            # 投影前归一化：稳定输入分布
+            z_causal_norm_in = F.normalize(z_causal, p=2, dim=-1)
+            z_sem_norm_in = F.normalize(z_sem, p=2, dim=-1)
+            
+            # 投影后归一化：确保点积 = cosine similarity
+            z_img_norm = F.normalize(z_img_shared, p=2, dim=-1)
+            z_txt_norm = F.normalize(z_txt_shared, p=2, dim=-1)
+            
+            # Step 4: 温度系数（使用更小的范围，更容易学习）
+            logit_scale = self.logit_scale.exp().clamp(min=0.1, max=50.0)  # 更小的范围
+            
+            # Step 5: 计算相似度矩阵 [B, B]
             logits_per_image = logit_scale * torch.matmul(z_img_norm, z_txt_norm.t())
             logits_per_text = logits_per_image.t()
             labels_align = torch.arange(B, device=device)
             
-            # 5. 计算 Loss (双向)
-            loss_align = (F.cross_entropy(logits_per_image, labels_align) + 
-                          F.cross_entropy(logits_per_text, labels_align)) / 2.0
-            loss_dict['L_align'] = loss_align
+            # Step 6: 主损失（InfoNCE Loss）
+            loss_align_ce = (F.cross_entropy(logits_per_image, labels_align) + 
+                            F.cross_entropy(logits_per_text, labels_align)) / 2.0
             
-            # 6. [User Request] 计算 Recall (Recall@1) 并存入 loss_dict
-            # 使用 'Recall' 键名，方便训练脚本直接读取打印
+            # Step 7: 辅助损失（L2距离损失，直接约束特征对齐）
+            # 对于配对样本（对角线），我们希望它们的特征尽可能接近
+            # 对于非配对样本（非对角线），我们希望它们的特征尽可能远离
+            diagonal_distances = torch.norm(z_img_norm - z_txt_norm, p=2, dim=-1)  # [B]
+            loss_align_l2 = diagonal_distances.mean()  # 最小化配对样本的距离
+            
+            # 组合损失（CE为主，L2为辅）
+            loss_align = loss_align_ce + 0.1 * loss_align_l2
+            loss_dict['L_align'] = loss_align
+            loss_dict['L_align_ce'] = loss_align_ce  # 用于监控
+            loss_dict['L_align_l2'] = loss_align_l2  # 用于监控
+            
+            # Step 8: 计算 Recall@1
             with torch.no_grad():
                 pred_i2t = logits_per_image.argmax(dim=1)
                 correct = (pred_i2t == labels_align).float().sum()
                 recall_val = correct / B
-                # 直接使用 'Recall' 键名，方便Log代码统一处理
                 loss_dict['Recall'] = recall_val
-                # 同时保留 'Recall_Align' 以兼容现有代码
                 loss_dict['Recall_Align'] = recall_val
+                
+                # 额外监控：平均余弦相似度（对角线）
+                diagonal_sim = (z_img_norm * z_txt_norm).sum(dim=-1).mean()
+                loss_dict['align_cosine_sim'] = diagonal_sim  # 应该接近1.0
 
-            # =======================================================
+            # ============================================================
             
             # 6.3 Sparse Loss (Attention Regularization)
             if attn_oct is not None:

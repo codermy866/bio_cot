@@ -49,7 +49,7 @@ class BioCOT_v3_Config:
     # 损失权重（🔥 新增：lambda_align）
     lambda_cls: float = 2.0      # 分类损失权重
     lambda_ot: float = 0.5       # Optimal Transport损失权重
-    lambda_align: float = 0.1    # 🔥 [NEW] 语义-视觉对齐损失权重（逻辑闭环关键）
+    lambda_align: float = 0.5    # 🔥 [PROFESSIONAL FIX] 增加对齐损失权重（从0.1提升到0.5，强制对齐）
     lambda_consist: float = 0.2  # 一致性损失权重
     lambda_adv: float = 0.5      # 对抗损失权重
     lambda_sparse: float = 0.05  # 注意力稀疏损失权重（从0.01提升到0.05）
