@@ -70,8 +70,10 @@ class NoiseMemoryBank(nn.Module):
                     # 空间不足，覆盖旧的特征
                     remaining = self.capacity - curr_ptr
                     if remaining > 0:
-                        self.bank[c, curr_ptr:self.capacity] = feats[:remaining]
-                        feats = feats[remaining:]
+                        # ⚠️ 修复：当 feats 数量小于 remaining 时，原实现会发生维度不匹配
+                        take = min(remaining, feats.shape[0])
+                        self.bank[c, curr_ptr:curr_ptr + take] = feats[:take]
+                        feats = feats[take:]
                     
                     # 从开头继续填充
                     if len(feats) > 0:
