@@ -429,6 +429,7 @@ def validate(model, dataloader, criterion, device, epoch, config, log_print=None
     all_preds = []
     all_labels = []
     all_probs = []
+    align_recalls = []  # 🔥 [NEW] 验证阶段的对齐召回率
     
     log_print(f"\n  📊 Epoch {epoch}/{config.num_epochs} - 验证阶段")
     log_print(f"     当前Beta: {current_beta:.3f}")
@@ -479,12 +480,13 @@ def validate(model, dataloader, criterion, device, epoch, config, log_print=None
                 colpo_features_patch = extract_patch_features_with_vit(colposcopy_images, device)  # [B, 196, 768]
             
             # 前向传播
+            # [关键修改] 验证时也设置 return_loss_components=True 以获取 Recall
             outputs = model(
                 f_oct=oct_features_patch,
                 f_colpo=colpo_features_patch,
                 note_embeds=knowledge_embeddings,
                 center_labels=center_labels,
-                return_loss_components=False,
+                return_loss_components=True,  # 🔥 [FIX] 改为 True 以获取 Recall
                 current_beta=current_beta
             )
             
@@ -492,6 +494,22 @@ def validate(model, dataloader, criterion, device, epoch, config, log_print=None
             loss = criterion(logits, labels)
             
             total_loss += loss.item()
+            
+            # 🔥 [NEW] 提取并记录对齐召回率
+            if 'loss_components' in outputs and 'Recall' in outputs['loss_components']:
+                try:
+                    recall_val = float(outputs['loss_components']['Recall'].detach().cpu().item())
+                    align_recalls.append(recall_val)
+                except Exception:
+                    align_recalls.append(0.0)
+            elif 'loss_components' in outputs and 'Recall_Align' in outputs['loss_components']:
+                try:
+                    recall_val = float(outputs['loss_components']['Recall_Align'].detach().cpu().item())
+                    align_recalls.append(recall_val)
+                except Exception:
+                    align_recalls.append(0.0)
+            else:
+                align_recalls.append(0.0)
             
             probs = torch.softmax(logits, dim=1)
             preds = logits.argmax(dim=1)
@@ -560,10 +578,14 @@ def validate(model, dataloader, criterion, device, epoch, config, log_print=None
         f1 = 0.0
         log_print(f"     ⚠️ F1计算失败: {e}")
     
+    # 🔥 [NEW] 计算平均对齐召回率
+    avg_recall = np.mean(align_recalls) if align_recalls else 0.0
+    
     log_print(f"\n  📊 Epoch {epoch} 验证统计:")
     log_print(f"     - 平均损失: {avg_loss:.6f}")
     log_print(f"     - 准确率: {acc:.4f}")
     log_print(f"     - AUC: {auc:.4f}")
+    log_print(f"     - 🔗 对齐召回率 (Recall@1): {avg_recall:.4f}")  # 🔥 [NEW] 验证阶段的 Recall
     log_print(f"     - F1-Score: {f1:.4f}")
     
     return {
@@ -571,13 +593,40 @@ def validate(model, dataloader, criterion, device, epoch, config, log_print=None
         'acc': acc,
         'auc': auc,
         'f1': f1,
+        'align_recall': avg_recall,  # 🔥 [NEW] 返回 Recall 值
     }
 
 
 def main():
     """主函数"""
+    import argparse
+    
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='Bio-COT 3.1 训练脚本')
+    parser.add_argument('--config', type=str, default=None,
+                       help='配置文件路径（可选，默认使用 config.py）')
+    parser.add_argument('--gpu', type=int, default=None,
+                       help='指定GPU ID（可选，默认自动选择）')
+    args = parser.parse_args()
+    
     # 加载配置
-    config = BioCOT_v3_Config()
+    if args.config:
+        # 从指定路径加载配置
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("config_module", args.config)
+        config_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config_module)
+        # 查找配置类（通常是 Config 结尾的类）
+        config_classes = [cls for cls in config_module.__dict__.values() 
+                        if isinstance(cls, type) and 'Config' in cls.__name__]
+        if config_classes:
+            config = config_classes[0]()
+        else:
+            raise ValueError(f"在 {args.config} 中未找到配置类")
+    else:
+        # 使用默认配置
+        from config import BioCOT_v3_Config
+        config = BioCOT_v3_Config()
     
     # 设置日志
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -610,7 +659,25 @@ def main():
     
     # 选择GPU
     if torch.cuda.is_available():
-        device = torch.device('cuda:0')
+        if args.gpu is not None:
+            device = torch.device(f'cuda:{args.gpu}')
+        else:
+            # 自动选择GPU（使用率最低的）
+            import subprocess
+            try:
+                result = subprocess.run(['nvidia-smi', '--query-gpu=index,utilization.gpu', 
+                                       '--format=csv,noheader,nounits'], 
+                                      capture_output=True, text=True)
+                gpu_utils = []
+                for line in result.stdout.strip().split('\n'):
+                    idx, util = line.split(', ')
+                    gpu_utils.append((int(idx), int(util)))
+                best_gpu = min(gpu_utils, key=lambda x: x[1])[0]
+                device = torch.device(f'cuda:{best_gpu}')
+                log_print(f"✅ 自动选择GPU {best_gpu} (使用率: {min(gpu_utils, key=lambda x: x[1])[1]}%)")
+            except:
+                device = torch.device('cuda:0')
+                log_print(f"✅ 使用GPU设备: {device}")
         log_print(f"✅ 使用GPU设备: {device}")
     else:
         raise RuntimeError("❌ CUDA不可用！")

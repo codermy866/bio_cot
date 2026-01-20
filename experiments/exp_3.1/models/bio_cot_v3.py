@@ -105,26 +105,22 @@ class BioCOT_v3(nn.Module):
             nn.Linear(embed_dim, embed_dim),
         )
 
-        # [FIX] 对齐专用投影头（Alignment Heads）
-        # - 用更紧凑的对齐空间（256）缓解高维“天然正交”导致的冷启动锁死
-        # - 使用两层MLP + ReLU，分离“分类空间”和“对比空间”
+        # [CRITICAL FIX] 极简主义对齐投影头
+        # 去掉 ReLU，直接使用 Linear -> LayerNorm 保证梯度畅通无阻
+        # LayerNorm 能拉齐特征分布，防止梯度消失
         self.align_dim = 256
         self.align_proj_img = nn.Sequential(
-            nn.Linear(embed_dim, embed_dim),
-            nn.ReLU(),
-            nn.Linear(embed_dim, self.align_dim),
+            nn.Linear(embed_dim, self.align_dim, bias=False),
+            nn.LayerNorm(self.align_dim)
         )
         self.align_proj_text = nn.Sequential(
-            nn.Linear(embed_dim, embed_dim),
-            nn.ReLU(),
-            nn.Linear(embed_dim, self.align_dim),
+            nn.Linear(embed_dim, self.align_dim, bias=False),
+            nn.LayerNorm(self.align_dim)
         )
 
-        # [FIX] 温度系数热启动：初始化为 ln(1/0.07) ≈ 2.659（CLIP标准设置）
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1.0 / 0.07))
-
-        # [FIX] 正交初始化：打破初始随机正交性，加速收敛
-        self._init_alignment_weights()
+        # [CRITICAL FIX] 温度系数初始化
+        # log(1/0.07) ≈ 2.6592，给一个合理的初值
+        self.logit_scale = nn.Parameter(torch.ones([]) * 2.6592)
         
         # 2. 增强型视觉笔记模块 (Visual Notes - Cross-Attention)
         if use_visual_notes:
@@ -171,21 +167,25 @@ class BioCOT_v3(nn.Module):
             self.consistency_loss = CounterfactualConsistencyLoss()
             self.adversarial_loss = AdversarialLoss(max(num_centers, 2))
             self.center_discriminator = CenterDiscriminator(embed_dim, max(num_centers, 2))
+            
+        # [CRITICAL FIX] 统一初始化权重
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        """统一初始化：Xavier for Linear, Standard for LayerNorm"""
+        if isinstance(m, nn.Linear):
+            nn.init.xavier_uniform_(m.weight)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
 
     def set_epoch(self, epoch: int):
         """设置当前epoch（用于Visual Notes的Warm-up）"""
         self.current_epoch = int(epoch)
         if self.use_visual_notes:
             self.visual_notes_module.set_epoch(epoch)
-
-    def _init_alignment_weights(self) -> None:
-        """对对齐投影头做正交初始化（只影响Alignment分支）"""
-        for m in [self.align_proj_img, self.align_proj_text]:
-            for layer in m:
-                if isinstance(layer, nn.Linear):
-                    nn.init.orthogonal_(layer.weight)
-                    if layer.bias is not None:
-                        nn.init.constant_(layer.bias, 0.0)
 
     def extract_features(self, feat_raw, z_sem, beta):
         """Helper to process features with Visual Notes"""
@@ -274,37 +274,42 @@ class BioCOT_v3(nn.Module):
             if self.use_ot:
                 loss_dict['L_ot'] = self.ot_loss(z_causal, z_sem)
             
-            # 6.2 [FIX] Alignment Loss（Hypersphere对比学习：双重归一化 + 温度热启动 + clamp）
-            # Double Normalization:
-            # - 投影前归一化：避免输入模长不稳定导致Softmax极度平滑/极度尖锐
-            # - 投影后归一化：确保点积=cosine similarity（严格落在[-1,1]）
-            z_c_in = F.normalize(z_causal, p=2, dim=-1)
-            z_s_in = F.normalize(z_sem, p=2, dim=-1)
-
-            z_img = self.align_proj_img(z_c_in)
-            z_txt = self.align_proj_text(z_s_in)
-
-            z_img = F.normalize(z_img, p=2, dim=-1)
-            z_txt = F.normalize(z_txt, p=2, dim=-1)
-
-            # 温度：exp(logit_scale)，限制范围避免数值不稳定
+            # =======================================================
+            # [CRITICAL FIX] 强力对齐模块 (Robust Alignment)
+            # =======================================================
+            # 1. 投影 + LayerNorm (关键！防止特征坍塌，保证梯度畅通)
+            z_img_embed = self.align_proj_img(z_causal)
+            z_txt_embed = self.align_proj_text(z_sem)
+            
+            # 2. 归一化 (Cosine Similarity 前置条件)
+            z_img_norm = F.normalize(z_img_embed, p=2, dim=-1)
+            z_txt_norm = F.normalize(z_txt_embed, p=2, dim=-1)
+            
+            # 3. 温度系数 (Clamp 防止数值溢出)
             logit_scale = self.logit_scale.exp().clamp(min=1.0, max=100.0)
-            logits_per_image = logit_scale * (z_img @ z_txt.t())  # [B, B]
+            
+            # 4. 计算相似度 [B, B]
+            logits_per_image = logit_scale * torch.matmul(z_img_norm, z_txt_norm.t())
             logits_per_text = logits_per_image.t()
-
             labels_align = torch.arange(B, device=device)
-            loss_align = (F.cross_entropy(logits_per_image, labels_align) +
+            
+            # 5. 计算 Loss (双向)
+            loss_align = (F.cross_entropy(logits_per_image, labels_align) + 
                           F.cross_entropy(logits_per_text, labels_align)) / 2.0
-            loss_dict["L_align"] = loss_align
-
-            # [NEW] Alignment Recall@1（图像-文本对齐召回/准确率，越高越好）
-            # 解释：对每个样本，预测与其最匹配的文本/图像是否为同一index（对角线）
+            loss_dict['L_align'] = loss_align
+            
+            # 6. [User Request] 计算 Recall (Recall@1) 并存入 loss_dict
+            # 使用 'Recall' 键名，方便训练脚本直接读取打印
             with torch.no_grad():
-                pred_i2t = logits_per_image.argmax(dim=1)  # image -> text
-                pred_t2i = logits_per_text.argmax(dim=1)   # text -> image
-                acc_i2t = (pred_i2t == labels_align).float().mean()
-                acc_t2i = (pred_t2i == labels_align).float().mean()
-                loss_dict["Recall_Align"] = (acc_i2t + acc_t2i) / 2.0
+                pred_i2t = logits_per_image.argmax(dim=1)
+                correct = (pred_i2t == labels_align).float().sum()
+                recall_val = correct / B
+                # 直接使用 'Recall' 键名，方便Log代码统一处理
+                loss_dict['Recall'] = recall_val
+                # 同时保留 'Recall_Align' 以兼容现有代码
+                loss_dict['Recall_Align'] = recall_val
+
+            # =======================================================
             
             # 6.3 Sparse Loss (Attention Regularization)
             if attn_oct is not None:
