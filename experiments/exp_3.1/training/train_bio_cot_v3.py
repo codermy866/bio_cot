@@ -49,7 +49,11 @@ from torchvision import transforms
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, roc_auc_score, classification_report, confusion_matrix, f1_score
+from sklearn.metrics import (
+    accuracy_score, roc_auc_score, classification_report, confusion_matrix, 
+    f1_score, precision_score, recall_score, 
+    matthews_corrcoef, average_precision_score, balanced_accuracy_score
+)
 import matplotlib.pyplot as plt
 from datetime import datetime
 import json
@@ -386,9 +390,59 @@ def train_epoch(
     avg_loss = total_loss / len(dataloader)
     acc = accuracy_score(all_labels, all_preds)
     
+    # 🔥 [NEW] 计算训练集的全面分类指标
+    try:
+        precision_train = precision_score(all_labels, all_preds, average='weighted', zero_division=0)
+        recall_train = recall_score(all_labels, all_preds, average='weighted', zero_division=0)
+        balanced_acc_train = balanced_accuracy_score(all_labels, all_preds)
+        mcc_train = matthews_corrcoef(all_labels, all_preds)
+        
+        # 对于二分类，计算阳性类别的指标
+        if len(np.unique(all_labels)) == 2:
+            precision_pos_train = precision_score(all_labels, all_preds, pos_label=1, zero_division=0)
+            recall_pos_train = recall_score(all_labels, all_preds, pos_label=1, zero_division=0)
+            sensitivity_train = recall_pos_train
+            
+            # 计算混淆矩阵
+            cm_train = confusion_matrix(all_labels, all_preds)
+            if cm_train.shape == (2, 2):
+                TN_train, FP_train, FN_train, TP_train = cm_train.ravel()
+                specificity_train = TN_train / (TN_train + FP_train) if (TN_train + FP_train) > 0 else 0.0
+                npv_train = TN_train / (TN_train + FN_train) if (TN_train + FN_train) > 0 else 0.0
+            else:
+                specificity_train = 0.0
+                npv_train = 0.0
+        else:
+            precision_pos_train = precision_train
+            recall_pos_train = recall_train
+            sensitivity_train = recall_train
+            specificity_train = 0.0
+            npv_train = 0.0
+    except Exception as e:
+        precision_train = 0.0
+        recall_train = 0.0
+        precision_pos_train = 0.0
+        recall_pos_train = 0.0
+        sensitivity_train = 0.0
+        specificity_train = 0.0
+        npv_train = 0.0
+        balanced_acc_train = 0.0
+        mcc_train = 0.0
+    
     log_print(f"\n  📊 Epoch {epoch} 训练统计:")
     log_print(f"     - 平均损失: {avg_loss:.6f}")
-    log_print(f"     - 准确率: {acc:.4f}")
+    log_print(f"     - 准确率 (Accuracy): {acc:.4f}")
+    log_print(f"     - 平衡准确率 (Balanced Accuracy): {balanced_acc_train:.4f}")  # 🔥 [NEW]
+    log_print(f"     - F1-Score: {f1_score(all_labels, all_preds, average='weighted', zero_division=0):.4f}")
+    log_print(f"     - MCC (Matthews): {mcc_train:.4f}")  # 🔥 [NEW]
+    if len(np.unique(all_labels)) == 2:
+        log_print(f"\n     📋 二分类详细指标:")
+        log_print(f"     - Precision (阳性, PPV): {precision_pos_train:.4f}")
+        log_print(f"     - Recall/Sensitivity (敏感度): {recall_pos_train:.4f}")
+        log_print(f"     - Specificity (特异性): {specificity_train:.4f}")  # 🔥 [NEW]
+        log_print(f"     - NPV (阴性预测值): {npv_train:.4f}")  # 🔥 [NEW]
+    log_print(f"     - Precision (加权平均): {precision_train:.4f}")
+    log_print(f"     - Recall (加权平均): {recall_train:.4f}")
     log_print(f"     - 分类损失: {np.mean(cls_losses):.6f}")
     if config.use_ot:
         log_print(f"     - OT损失: {np.mean(ot_losses):.6f}")
@@ -404,10 +458,19 @@ def train_epoch(
     return {
         'loss': avg_loss,
         'acc': acc,
+        'balanced_acc': balanced_acc_train,  # 🔥 [NEW] 训练集平衡准确率
+        'precision': precision_train,  # 训练集Precision
+        'recall': recall_train,  # 训练集Recall
+        'precision_pos': precision_pos_train,  # 训练集阳性Precision
+        'recall_pos': recall_pos_train,  # 训练集阳性Recall
+        'sensitivity': sensitivity_train,  # 🔥 [NEW] 训练集敏感度
+        'specificity': specificity_train,  # 🔥 [NEW] 训练集特异性
+        'npv': npv_train,  # 🔥 [NEW] 训练集阴性预测值
+        'mcc': mcc_train,  # 🔥 [NEW] 训练集MCC
         'cls_loss': np.mean(cls_losses),
         'ot_loss': np.mean(ot_losses) if ot_losses else 0.0,
-        'align_loss': np.mean(align_losses) if align_losses else 0.0,  # 🔥 [NEW]
-        'align_recall': float(np.mean(align_recalls)) if align_recalls else 0.0,  # 🔥 [NEW]
+        'align_loss': np.mean(align_losses) if align_losses else 0.0,
+        'align_recall': float(np.mean(align_recalls)) if align_recalls else 0.0,
         'sparse_loss': np.mean(sparse_losses) if sparse_losses else 0.0,
         'consist_loss': np.mean(consist_losses) if consist_losses else 0.0,
         'adv_loss': np.mean(adv_losses) if adv_losses else 0.0,
@@ -581,19 +644,104 @@ def validate(model, dataloader, criterion, device, epoch, config, log_print=None
     # 🔥 [NEW] 计算平均对齐召回率
     avg_recall = np.mean(align_recalls) if align_recalls else 0.0
     
+    # 🔥 [NEW] 计算全面的分类任务指标
+    try:
+        # 基础指标
+        precision = precision_score(all_labels, all_preds, average='weighted', zero_division=0)
+        recall = recall_score(all_labels, all_preds, average='weighted', zero_division=0)
+        
+        # 二分类特有指标
+        if len(np.unique(all_labels)) == 2:
+            # 计算混淆矩阵
+            cm = confusion_matrix(all_labels, all_preds)
+            if cm.shape == (2, 2):
+                TN, FP, FN, TP = cm.ravel()
+            else:
+                # 处理边界情况
+                if len(cm.ravel()) == 1:
+                    TN = cm[0, 0] if cm.shape == (1, 1) else 0
+                    FP, FN, TP = 0, 0, 0
+                else:
+                    TN, FP, FN, TP = 0, 0, 0, 0
+            
+            # 阳性类别指标（Sensitivity/Recall）
+            precision_pos = precision_score(all_labels, all_preds, pos_label=1, zero_division=0)
+            recall_pos = recall_score(all_labels, all_preds, pos_label=1, zero_division=0)
+            sensitivity = recall_pos  # Sensitivity = Recall for positive class
+            
+            # Specificity (特异性) = TN / (TN + FP)
+            specificity = TN / (TN + FP) if (TN + FP) > 0 else 0.0
+            
+            # NPV (Negative Predictive Value, 阴性预测值) = TN / (TN + FN)
+            npv = TN / (TN + FN) if (TN + FN) > 0 else 0.0
+            
+            # Balanced Accuracy = (Sensitivity + Specificity) / 2
+            balanced_acc = balanced_accuracy_score(all_labels, all_preds)
+            
+            # Matthews Correlation Coefficient (MCC)
+            mcc = matthews_corrcoef(all_labels, all_preds)
+            
+            # PR-AUC (Precision-Recall AUC) - 处理类别不平衡
+            try:
+                pr_auc = average_precision_score(all_labels, all_probs)
+            except:
+                pr_auc = 0.0
+        else:
+            precision_pos = precision
+            recall_pos = recall
+            sensitivity = recall
+            specificity = 0.0
+            npv = 0.0
+            balanced_acc = acc
+            mcc = 0.0
+            pr_auc = 0.0
+    except Exception as e:
+        precision = 0.0
+        recall = 0.0
+        precision_pos = 0.0
+        recall_pos = 0.0
+        sensitivity = 0.0
+        specificity = 0.0
+        npv = 0.0
+        balanced_acc = 0.0
+        mcc = 0.0
+        pr_auc = 0.0
+        log_print(f"     ⚠️ 分类指标计算失败: {e}")
+    
     log_print(f"\n  📊 Epoch {epoch} 验证统计:")
     log_print(f"     - 平均损失: {avg_loss:.6f}")
-    log_print(f"     - 准确率: {acc:.4f}")
-    log_print(f"     - AUC: {auc:.4f}")
-    log_print(f"     - 🔗 对齐召回率 (Recall@1): {avg_recall:.4f}")  # 🔥 [NEW] 验证阶段的 Recall
+    log_print(f"     - 准确率 (Accuracy): {acc:.4f}")
+    log_print(f"     - 平衡准确率 (Balanced Accuracy): {balanced_acc:.4f}")  # 🔥 [NEW]
+    log_print(f"     - AUC (ROC): {auc:.4f}")
+    log_print(f"     - PR-AUC: {pr_auc:.4f}")  # 🔥 [NEW] Precision-Recall AUC
     log_print(f"     - F1-Score: {f1:.4f}")
+    log_print(f"     - MCC (Matthews): {mcc:.4f}")  # 🔥 [NEW] Matthews相关系数
+    if len(np.unique(all_labels)) == 2:
+        log_print(f"\n     📋 二分类详细指标:")
+        log_print(f"     - Precision (阳性, PPV): {precision_pos:.4f}")
+        log_print(f"     - Recall/Sensitivity (敏感度, TPR): {recall_pos:.4f}")
+        log_print(f"     - Specificity (特异性, TNR): {specificity:.4f}")  # 🔥 [NEW]
+        log_print(f"     - NPV (阴性预测值): {npv:.4f}")  # 🔥 [NEW]
+    log_print(f"     - Precision (加权平均): {precision:.4f}")
+    log_print(f"     - Recall (加权平均): {recall:.4f}")
+    log_print(f"     - 🔗 对齐召回率 (Recall@1): {avg_recall:.4f}")  # 对齐任务的Recall
     
     return {
         'loss': avg_loss,
         'acc': acc,
+        'balanced_acc': balanced_acc,  # 🔥 [NEW] 平衡准确率
         'auc': auc,
+        'pr_auc': pr_auc,  # 🔥 [NEW] PR-AUC
+        'precision': precision,
+        'recall': recall,
+        'precision_pos': precision_pos,  # 阳性类别精确率 (PPV)
+        'recall_pos': recall_pos,  # 阳性类别召回率（敏感度, Sensitivity）
+        'sensitivity': sensitivity,  # 🔥 [NEW] 敏感度
+        'specificity': specificity,  # 🔥 [NEW] 特异性
+        'npv': npv,  # 🔥 [NEW] 阴性预测值
         'f1': f1,
-        'align_recall': avg_recall,  # 🔥 [NEW] 返回 Recall 值
+        'mcc': mcc,  # 🔥 [NEW] Matthews相关系数
+        'align_recall': avg_recall,  # 对齐任务的Recall
     }
 
 
@@ -627,6 +775,11 @@ def main():
         # 使用默认配置
         from config import BioCOT_v3_Config
         config = BioCOT_v3_Config()
+    
+    # 🔥 强制确保消融实验使用20个epoch
+    if args.config and 'ablation_studies' in str(args.config):
+        config.num_epochs = 20
+        print(f"✅ 检测到消融实验，强制设置 num_epochs = 20")
     
     # 设置日志
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -768,9 +921,16 @@ def main():
     
     best_auc = 0.0
     history = {
-        'train_loss': [], 'train_acc': [],
-        'val_loss': [], 'val_acc': [], 'val_auc': [], 'val_f1': [],
-        'cls_loss': [], 'ot_loss': [], 'align_loss': [], 'align_recall': [], 'sparse_loss': [], 'consist_loss': [], 'adv_loss': []  # 🔥 添加align_recall
+        # 训练集指标
+        'train_loss': [], 'train_acc': [], 'train_balanced_acc': [], 'train_precision': [], 'train_recall': [],
+        'train_precision_pos': [], 'train_recall_pos': [], 'train_sensitivity': [], 'train_specificity': [],
+        'train_npv': [], 'train_mcc': [],
+        # 验证集指标
+        'val_loss': [], 'val_acc': [], 'val_balanced_acc': [], 'val_auc': [], 'val_pr_auc': [], 'val_f1': [],
+        'val_precision': [], 'val_recall': [], 'val_precision_pos': [], 'val_recall_pos': [],
+        'val_sensitivity': [], 'val_specificity': [], 'val_npv': [], 'val_mcc': [],
+        # 损失指标
+        'cls_loss': [], 'ot_loss': [], 'align_loss': [], 'align_recall': [], 'sparse_loss': [], 'consist_loss': [], 'adv_loss': []
     }
     
     for epoch in range(1, config.num_epochs + 1):
@@ -787,17 +947,38 @@ def main():
             log_print("训练已停止，请检查错误信息")
             break
         
-        # 记录历史
+        # 记录历史（训练集）
         history['train_loss'].append(train_results['loss'])
         history['train_acc'].append(train_results['acc'])
+        history['train_balanced_acc'].append(train_results.get('balanced_acc', 0.0))  # 🔥 [NEW]
+        history['train_precision'].append(train_results.get('precision', 0.0))
+        history['train_recall'].append(train_results.get('recall', 0.0))
+        history['train_precision_pos'].append(train_results.get('precision_pos', 0.0))
+        history['train_recall_pos'].append(train_results.get('recall_pos', 0.0))
+        history['train_sensitivity'].append(train_results.get('sensitivity', 0.0))  # 🔥 [NEW]
+        history['train_specificity'].append(train_results.get('specificity', 0.0))  # 🔥 [NEW]
+        history['train_npv'].append(train_results.get('npv', 0.0))  # 🔥 [NEW]
+        history['train_mcc'].append(train_results.get('mcc', 0.0))  # 🔥 [NEW]
+        # 记录历史（验证集）
         history['val_loss'].append(val_results['loss'])
         history['val_acc'].append(val_results['acc'])
+        history['val_balanced_acc'].append(val_results.get('balanced_acc', 0.0))  # 🔥 [NEW]
         history['val_auc'].append(val_results['auc'])
+        history['val_pr_auc'].append(val_results.get('pr_auc', 0.0))  # 🔥 [NEW]
         history['val_f1'].append(val_results['f1'])
+        history['val_precision'].append(val_results.get('precision', 0.0))
+        history['val_recall'].append(val_results.get('recall', 0.0))
+        history['val_precision_pos'].append(val_results.get('precision_pos', 0.0))
+        history['val_recall_pos'].append(val_results.get('recall_pos', 0.0))
+        history['val_sensitivity'].append(val_results.get('sensitivity', 0.0))  # 🔥 [NEW]
+        history['val_specificity'].append(val_results.get('specificity', 0.0))  # 🔥 [NEW]
+        history['val_npv'].append(val_results.get('npv', 0.0))  # 🔥 [NEW]
+        history['val_mcc'].append(val_results.get('mcc', 0.0))  # 🔥 [NEW]
+        # 记录损失
         history['cls_loss'].append(train_results['cls_loss'])
         history['ot_loss'].append(train_results['ot_loss'])
-        history['align_loss'].append(train_results.get('align_loss', 0.0))  # 🔥 [NEW]
-        history['align_recall'].append(train_results.get('align_recall', 0.0))  # 🔥 [NEW]
+        history['align_loss'].append(train_results.get('align_loss', 0.0))
+        history['align_recall'].append(train_results.get('align_recall', 0.0))
         history['sparse_loss'].append(train_results['sparse_loss'])
         history['consist_loss'].append(train_results['consist_loss'])
         history['adv_loss'].append(train_results['adv_loss'])

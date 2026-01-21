@@ -24,6 +24,9 @@ class BaselineConfig(BioCOT_v3_Config):
     experiment_name: str = "baseline"
     experiment_description: str = "Baseline: 移除所有高级模块"
     
+    # 训练配置（消融实验使用20个epoch） - 必须在最前面，确保覆盖父类默认值
+    num_epochs: int = 20
+    
     # 禁用所有高级模块
     use_visual_notes: bool = False
     use_ot: bool = False
@@ -43,7 +46,9 @@ class BaselineConfig(BioCOT_v3_Config):
     log_dir: str = 'ablation_studies/baseline/logs'
     
     def __post_init__(self):
-        """后处理：创建输出目录"""
+        """后处理：创建输出目录并确保epoch数为20"""
+        # 强制设置epoch数为20（确保覆盖父类默认值）
+        self.num_epochs = 20
         for dir_name in [self.output_dir, self.checkpoint_dir, self.log_dir]:
             Path(dir_name).mkdir(parents=True, exist_ok=True)
 

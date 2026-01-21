@@ -23,12 +23,17 @@ class NoVisualNotesConfig(BioCOT_v3_Config):
     use_visual_notes: bool = False
     lambda_sparse: float = 0.0  # 稀疏损失也禁用
     
+    # 训练配置（消融实验使用20个epoch）
+    num_epochs: int = 20
+    
     # 输出目录
     output_dir: str = 'ablation_studies/w/o_visual_notes/results'
     checkpoint_dir: str = 'ablation_studies/w/o_visual_notes/checkpoints'
     log_dir: str = 'ablation_studies/w/o_visual_notes/logs'
     
     def __post_init__(self):
+        # 强制设置epoch数为20（确保覆盖父类默认值）
+        self.num_epochs = 20
         for dir_name in [self.output_dir, self.checkpoint_dir, self.log_dir]:
             Path(dir_name).mkdir(parents=True, exist_ok=True)
 
