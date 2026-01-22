@@ -24,6 +24,7 @@ import random
 ROOT = Path(__file__).resolve().parents[1]  # experiments/exp_3.1
 
 EXPERIMENT_ORDER = [
+    # ========== 单模块消融实验（移除单个模块）==========
     "baseline",
     "w/o_visual_notes",
     "w/o_alignment_loss",
@@ -31,9 +32,21 @@ EXPERIMENT_ORDER = [
     "w/o_dual_head",
     "w/o_adaptive_gating",
     "w/o_cross_attn",
+    # ========== 组合消融实验（只保留两个模块）==========
+    "only_visual_notes_align",      # Visual Notes + Alignment Loss
+    "only_visual_notes_ot",          # Visual Notes + OT Loss
+    "only_visual_notes_dual",        # Visual Notes + Dual Head
+    "only_visual_notes_crossattn",   # Visual Notes + Cross-Attention
+    "only_align_ot",                 # Alignment Loss + OT Loss
+    "only_align_dual",               # Alignment Loss + Dual Head
+    "only_align_crossattn",          # Alignment Loss + Cross-Attention
+    "only_ot_dual",                  # OT Loss + Dual Head
+    "only_ot_crossattn",             # OT Loss + Cross-Attention
+    "only_dual_crossattn",           # Dual Head + Cross-Attention
 ]
 
 CONFIG_PATHS = {
+    # 单模块消融实验
     "baseline": "ablation_studies/baseline/config.py",
     "w/o_visual_notes": "ablation_studies/w/o_visual_notes/config.py",
     "w/o_alignment_loss": "ablation_studies/w/o_alignment_loss/config.py",
@@ -41,6 +54,17 @@ CONFIG_PATHS = {
     "w/o_dual_head": "ablation_studies/w/o_dual_head/config.py",
     "w/o_adaptive_gating": "ablation_studies/w/o_adaptive_gating/config.py",
     "w/o_cross_attn": "ablation_studies/w/o_cross_attn/config.py",
+    # 组合消融实验
+    "only_visual_notes_align": "ablation_studies/only_visual_notes_align/config.py",
+    "only_visual_notes_ot": "ablation_studies/only_visual_notes_ot/config.py",
+    "only_visual_notes_dual": "ablation_studies/only_visual_notes_dual/config.py",
+    "only_visual_notes_crossattn": "ablation_studies/only_visual_notes_crossattn/config.py",
+    "only_align_ot": "ablation_studies/only_align_ot/config.py",
+    "only_align_dual": "ablation_studies/only_align_dual/config.py",
+    "only_align_crossattn": "ablation_studies/only_align_crossattn/config.py",
+    "only_ot_dual": "ablation_studies/only_ot_dual/config.py",
+    "only_ot_crossattn": "ablation_studies/only_ot_crossattn/config.py",
+    "only_dual_crossattn": "ablation_studies/only_dual_crossattn/config.py",
 }
 
 
@@ -181,9 +205,12 @@ def _start_exp(exp: str, physical_gpu: int) -> tuple[int, Path]:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = log_dir / f"nohup_{exp.replace('/', '_')}_{ts}.log"
 
-    # ⚠️ 不要对venv python做 resolve()，否则会解析到 /usr/bin/python 导致丢失venv依赖（如torch）
-    # 直接用当前解释器（本脚本就是用正确venv启动的）
-    py = Path(sys.executable)
+    # 🔥 使用指定的虚拟环境 Python（确保使用正确的依赖）
+    venv_python = ROOT.parents[1] / "my_retfound" / "bin" / "python"
+    if not venv_python.exists():
+        # 如果指定路径不存在，回退到 sys.executable
+        venv_python = Path(sys.executable)
+    py = venv_python
     train_script = (ROOT / "training" / "train_bio_cot_v3.py").resolve()
 
     cmd = [
