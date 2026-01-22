@@ -764,13 +764,27 @@ def main():
         spec = importlib.util.spec_from_file_location("config_module", args.config)
         config_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(config_module)
-        # 查找配置类（通常是 Config 结尾的类）
-        config_classes = [cls for cls in config_module.__dict__.values() 
-                        if isinstance(cls, type) and 'Config' in cls.__name__]
-        if config_classes:
-            config = config_classes[0]()
-        else:
-            raise ValueError(f"在 {args.config} 中未找到配置类")
+
+        # 查找“在该配置文件中定义的”配置类（避免把import进来的BioCOT_v3_Config误选为第一个）
+        config_classes = [
+            cls for cls in config_module.__dict__.values()
+            if isinstance(cls, type)
+            and 'Config' in cls.__name__
+            and getattr(cls, "__module__", None) == getattr(config_module, "__name__", None)
+        ]
+        if not config_classes:
+            raise ValueError(f"在 {args.config} 中未找到配置类（请确保文件内定义了 *Config 类）")
+
+        # 若存在多个，优先选择“非BioCOT_v3_Config”的那个（一般是 BaselineConfig/NoXXXConfig）
+        config_class = None
+        for cls in config_classes:
+            if cls.__name__ != "BioCOT_v3_Config":
+                config_class = cls
+                break
+        if config_class is None:
+            config_class = config_classes[0]
+
+        config = config_class()
     else:
         # 使用默认配置
         from config import BioCOT_v3_Config
