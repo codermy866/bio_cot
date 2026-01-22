@@ -106,3 +106,4 @@ MIGRATION_REPORT.json
 *.zip
 *.tar.gz
 *.rar
+*.pth
