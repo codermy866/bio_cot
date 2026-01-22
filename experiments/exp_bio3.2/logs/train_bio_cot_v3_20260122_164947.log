@@ -1,0 +1,24 @@
+================================================================================
+Bio-COT 3.1 Logic Loop: 以医学先验为核心的自适应推理系统
+核心升级:
+  1. Adaptive Modality Gating (自适应模态门控)
+  2. Enhanced Visual Notes (Cross-Attention机制)
+  3. Semantic-Visual Alignment Loop (语义-视觉对齐闭环)
+================================================================================
+数据路径: /data2/hmy/5Center_datas/5centers_multi_positive_sites_multimodal
+VLM缓存路径: /data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio4.0/data/vlm_profiles_v1.json
+Text Encoder: microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext
+模块配置:
+  - use_visual_notes: True
+  - use_ot: True
+  - use_dual: True
+  - use_cross_attn: True
+================================================================================
+✅ 自动选择GPU 1 (使用率: 21%)
+✅ 使用GPU设备: cuda:1
+
+📊 开始加载数据集...
+  ✅ 训练集加载完成: 669 个样本
+  ✅ 验证集加载完成: 168 个样本
+
+📊 正在创建Bio-COT 3.0模型...
