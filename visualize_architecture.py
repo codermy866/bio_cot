@@ -1,592 +1,521 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Bio-COT 3.2 模型架构可视化
-绘制详细的模型架构图，包含所有模块和细节
+Bio-COT 3.2 模型架构可视化（顶刊风格）
+参考CVPR、MICCAI等顶刊的架构图风格，绘制专业的模型架构图
 """
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, ConnectionPatch, Rectangle, Circle, Ellipse
-from matplotlib.patches import Arrow, FancyArrow
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, Rectangle, Circle, Polygon, PathPatch
+from matplotlib.patches import Path as MPath
 import numpy as np
 from pathlib import Path
 
-# 设置中文字体
-plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS', 'Arial']
+# 设置中文字体和专业字体
+plt.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans']
 plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 9
+plt.rcParams['font.weight'] = 'normal'
+
+def draw_module_box(ax, x, y, width, height, text, color, edge_color, linewidth=2, 
+                    subtext=None, detail_text=None, text_color='black'):
+    """绘制模块框（顶刊风格）"""
+    # 主框
+    box = FancyBboxPatch((x, y), width, height,
+                         boxstyle="round,pad=0.08", 
+                         facecolor=color,
+                         edgecolor=edge_color,
+                         linewidth=linewidth,
+                         zorder=2)
+    ax.add_patch(box)
+    
+    # 主文本
+    if subtext:
+        ax.text(x + width/2, y + height - 0.15, text,
+                ha='center', va='top', fontsize=11, weight='bold', color=text_color)
+        ax.text(x + width/2, y + height/2, subtext,
+                ha='center', va='center', fontsize=9, color=text_color)
+    else:
+        ax.text(x + width/2, y + height/2, text,
+                ha='center', va='center', fontsize=10, weight='bold', color=text_color)
+    
+    # 详细文本
+    if detail_text:
+        ax.text(x + width/2, y + 0.1, detail_text,
+                ha='center', va='bottom', fontsize=7, style='italic', color=text_color)
+    
+    return box
+
+def draw_arrow(ax, x1, y1, x2, y2, color='#333333', linewidth=1.5, style='solid', 
+               label=None, label_pos=0.5, label_offset=0.15):
+    """绘制箭头（顶刊风格）"""
+    if style == 'dashed':
+        linestyle = '--'
+    elif style == 'dotted':
+        linestyle = ':'
+    else:
+        linestyle = '-'
+    
+    arrow = FancyArrowPatch((x1, y1), (x2, y2),
+                            arrowstyle='->', 
+                            lw=linewidth, 
+                            color=color,
+                            linestyle=linestyle,
+                            zorder=1,
+                            mutation_scale=15)
+    ax.add_patch(arrow)
+    
+    if label:
+        mid_x = x1 + (x2 - x1) * label_pos
+        mid_y = y1 + (y2 - y1) * label_pos
+        # 计算垂直偏移
+        dx = x2 - x1
+        dy = y2 - y1
+        length = np.sqrt(dx**2 + dy**2)
+        if length > 0:
+            perp_x = -dy / length * label_offset
+            perp_y = dx / length * label_offset
+            ax.text(mid_x + perp_x, mid_y + perp_y, label,
+                   ha='center', va='center', fontsize=8, 
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+                            edgecolor='none', alpha=0.8),
+                   zorder=3)
+    return arrow
+
+def draw_dimension_label(ax, x, y, text, color='#666666'):
+    """绘制维度标注"""
+    ax.text(x, y, text, ha='center', va='center', fontsize=7,
+           style='italic', color=color, weight='normal')
 
 def draw_bio_cot_v3_2_architecture():
     """
-    绘制Bio-COT 3.2的详细架构图
+    绘制Bio-COT 3.2的详细架构图（顶刊风格）
     """
-    fig = plt.figure(figsize=(24, 32))
+    fig = plt.figure(figsize=(20, 28))
     ax = fig.add_subplot(111)
-    ax.set_xlim(0, 24)
-    ax.set_ylim(0, 32)
+    ax.set_xlim(0, 20)
+    ax.set_ylim(0, 28)
     ax.axis('off')
     
-    # 定义颜色方案
+    # 专业配色方案（参考顶刊）
     colors = {
-        'input': '#E8F4F8',      # 浅蓝色 - 输入
-        'vlm': '#FFE5B4',        # 浅橙色 - VLM模块（4.0优势）
-        'visual_notes': '#E6F3FF', # 浅蓝色 - Visual Notes（3.1优势）
-        'adaptive': '#E8F5E9',    # 浅绿色 - 自适应模块（3.1优势）
-        'dual_head': '#FFF3E0',   # 浅橙色 - 双头编码器
-        'alignment': '#F3E5F5',   # 浅紫色 - 对齐模块（3.1优势）
-        'fusion': '#E0F2F1',      # 浅青色 - 融合模块
-        'classifier': '#FFEBEE',  # 浅红色 - 分类器
-        'loss': '#FCE4EC',        # 浅粉色 - 损失函数
-        'arrow': '#424242',       # 深灰色 - 箭头
-        'text': '#212121'         # 深灰色 - 文本
+        'input': '#E3F2FD',           # 浅蓝色 - 输入
+        'vlm_frozen': '#FFF3E0',      # 浅橙色 - 冻结模块
+        'vlm_trainable': '#FFE0B2',    # 橙色 - 可训练模块
+        'visual_notes': '#E1F5FE',     # 浅青色 - Visual Notes
+        'adaptive': '#E8F5E9',        # 浅绿色 - 自适应
+        'dual_head': '#F3E5F5',       # 浅紫色 - 双头
+        'alignment': '#FCE4EC',       # 浅粉色 - 对齐
+        'fusion': '#E0F2F1',          # 浅青色 - 融合
+        'classifier': '#FFF9C4',      # 浅黄色 - 分类器
+        'loss': '#FFEBEE',            # 浅红色 - 损失
+        'arrow_main': '#1976D2',      # 蓝色 - 主数据流
+        'arrow_aux': '#4CAF50',       # 绿色 - 辅助连接
+        'arrow_loss': '#F44336',      # 红色 - 损失连接
+        'text': '#212121'             # 深灰色 - 文本
     }
     
+    # ==================== 标题区域 ====================
+    title_box = Rectangle((0, 26.5), 20, 1.3, 
+                         facecolor='#1A237E', edgecolor='none', zorder=0)
+    ax.add_patch(title_box)
+    ax.text(10, 27.5, 'Bio-COT 3.2: Enhanced Logic Loop Architecture', 
+            ha='center', va='center', fontsize=16, weight='bold', color='white')
+    ax.text(10, 27.0, 'Integrating 3.1 Advantages (Explicit Alignment, Adaptive Fusion) + 4.0 Advantages (Frozen VLM, Dynamic Knowledge)', 
+            ha='center', va='center', fontsize=10, color='#E3F2FD')
+    
+    y_pos = 26.0
+    
     # ==================== 输入层 ====================
-    y_start = 30.5
+    y_input = y_pos - 0.8
     
-    # OCT图像特征
-    oct_box = FancyBboxPatch((0.5, y_start-0.8), 3.5, 0.6, 
-                             boxstyle="round,pad=0.05", 
-                             facecolor=colors['input'], 
-                             edgecolor='#1976D2', linewidth=2)
-    ax.add_patch(oct_box)
-    ax.text(2.25, y_start-0.5, 'OCT图像特征\n[B, N, 768]', 
-            ha='center', va='center', fontsize=10, weight='bold', color=colors['text'])
+    # OCT特征
+    draw_module_box(ax, 0.3, y_input-0.4, 3.5, 0.4, 
+                   'OCT Features', colors['input'], '#1976D2', 2,
+                   detail_text='[B, N, 768]')
     
-    # Colposcopy图像特征
-    colpo_box = FancyBboxPatch((4.5, y_start-0.8), 3.5, 0.6,
-                               boxstyle="round,pad=0.05",
-                               facecolor=colors['input'],
-                               edgecolor='#1976D2', linewidth=2)
-    ax.add_patch(colpo_box)
-    ax.text(6.25, y_start-0.5, 'Colposcopy图像特征\n[B, N, 768]',
-            ha='center', va='center', fontsize=10, weight='bold', color=colors['text'])
+    # Colposcopy特征
+    draw_module_box(ax, 4.3, y_input-0.4, 3.5, 0.4,
+                   'Colposcopy Features', colors['input'], '#1976D2', 2,
+                   detail_text='[B, N, 768]')
     
-    # 图像文件名和临床信息
-    meta_box = FancyBboxPatch((8.5, y_start-0.8), 3.5, 0.6,
-                              boxstyle="round,pad=0.05",
-                              facecolor=colors['input'],
-                              edgecolor='#1976D2', linewidth=2)
-    ax.add_patch(meta_box)
-    ax.text(10.25, y_start-0.5, '图像文件名\n临床信息',
-            ha='center', va='center', fontsize=10, weight='bold', color=colors['text'])
+    # 图像元数据
+    draw_module_box(ax, 8.3, y_input-0.4, 3.5, 0.4,
+                   'Image Names\nClinical Info', colors['input'], '#1976D2', 2)
     
     # VLM缓存
-    vlm_cache_box = FancyBboxPatch((12.5, y_start-0.8), 4.5, 0.6,
-                                    boxstyle="round,pad=0.05",
-                                    facecolor=colors['vlm'],
-                                    edgecolor='#FF6F00', linewidth=2)
-    ax.add_patch(vlm_cache_box)
-    ax.text(14.75, y_start-0.5, 'VLM缓存\n(102,705个描述)',
-            ha='center', va='center', fontsize=9, weight='bold', color=colors['text'])
+    draw_module_box(ax, 12.3, y_input-0.4, 3.5, 0.4,
+                   'VLM Cache', colors['vlm_frozen'], '#FF6F00', 2,
+                   detail_text='102,705 descriptions')
     
-    y_current = y_start - 1.5
+    # 中心标签（用于损失）
+    draw_module_box(ax, 16.3, y_input-0.4, 3.2, 0.4,
+                   'Center Labels', colors['input'], '#1976D2', 2,
+                   detail_text='[B]')
+    
+    y_pos = y_input - 0.9
     
     # ==================== Step 1: VLM增强知识检索器（4.0优势）====================
-    y_vlm = y_current - 1.0
+    y_vlm = y_pos - 0.5
     
-    # VLM检索器主框
-    vlm_main_box = FancyBboxPatch((2, y_vlm-2.5), 20, 2.5,
-                                   boxstyle="round,pad=0.1",
-                                   facecolor=colors['vlm'],
-                                   edgecolor='#FF6F00', linewidth=3)
-    ax.add_patch(vlm_main_box)
-    ax.text(12, y_vlm-0.3, 'Step 1: VLM增强知识检索器 (4.0优势)', 
-            ha='center', va='center', fontsize=14, weight='bold', color='#E65100')
+    # 主框架
+    vlm_frame = Rectangle((0.2, y_vlm-2.8), 19.6, 2.8,
+                          facecolor='white', edgecolor='#FF6F00', linewidth=2.5,
+                          linestyle='--', zorder=0)
+    ax.add_patch(vlm_frame)
+    ax.text(10, y_vlm-0.1, 'Step 1: VLM-Augmented Knowledge Retriever (4.0 Advantage)', 
+            ha='center', va='top', fontsize=12, weight='bold', color='#E65100')
     
-    # Frozen Text Encoder
-    frozen_box = FancyBboxPatch((3, y_vlm-1.8), 5.5, 1.0,
-                                 boxstyle="round,pad=0.05",
-                                 facecolor='#FFF9C4',
-                                 edgecolor='#F57F17', linewidth=2)
-    ax.add_patch(frozen_box)
-    ax.text(5.75, y_vlm-1.3, '❄️ Frozen Text Encoder\nPubMedBERT (768维)', 
-            ha='center', va='center', fontsize=9, color=colors['text'])
+    # 1.1 VLM描述检索
+    draw_module_box(ax, 1, y_vlm-1.2, 4, 0.9,
+                   'VLM Description\nRetrieval', colors['vlm_frozen'], '#FF6F00', 2,
+                   detail_text='Lookup: image_name → VLM description')
     
-    # VLM描述检索
-    vlm_desc_box = FancyBboxPatch((9, y_vlm-1.8), 4, 1.0,
-                                   boxstyle="round,pad=0.05",
-                                   facecolor='#E1F5FE',
-                                   edgecolor='#0277BD', linewidth=2)
-    ax.add_patch(vlm_desc_box)
-    ax.text(11, y_vlm-1.3, 'VLM描述检索\n(基于图像文件名)',
-            ha='center', va='center', fontsize=9, color=colors['text'])
+    # 1.2 文本构造
+    draw_module_box(ax, 5.5, y_vlm-1.2, 3.5, 0.9,
+                   'Text Prompt\nConstruction', colors['vlm_frozen'], '#FF6F00', 2,
+                   detail_text='"Findings: {vlm_desc}. Clinical: {clinical_info}"')
     
-    # Trainable Adapter
-    adapter_box = FancyBboxPatch((13.5, y_vlm-1.8), 5.5, 1.0,
-                                  boxstyle="round,pad=0.05",
-                                  facecolor='#FFE0B2',
-                                  edgecolor='#E65100', linewidth=2)
-    ax.add_patch(adapter_box)
-    ax.text(16.25, y_vlm-1.3, '🔥 Trainable Adapter\nLinear→LayerNorm→ReLU→Dropout→Linear\n(768→768→768)',
-            ha='center', va='center', fontsize=8, color=colors['text'])
+    # 1.3 Frozen Text Encoder
+    draw_module_box(ax, 9.5, y_vlm-1.2, 4.5, 0.9,
+                   'Frozen Text Encoder\nPubMedBERT', colors['vlm_frozen'], '#F57C00', 2.5,
+                   detail_text='❄️ Frozen (no grad) | Output: [B, 768]')
+    
+    # 1.4 Trainable Adapter
+    adapter_detail = 'Linear(768→768)\nLayerNorm → ReLU\nDropout(0.1)\nLinear(768→768)'
+    draw_module_box(ax, 14.5, y_vlm-1.2, 4.5, 0.9,
+                   'Trainable Adapter', colors['vlm_trainable'], '#E65100', 2.5,
+                   detail_text='🔥 Trainable | Maps: text → visual space')
     
     # 输出：z_sem
-    z_sem_box = FancyBboxPatch((19.5, y_vlm-1.8), 2, 1.0,
-                                boxstyle="round,pad=0.05",
-                                facecolor='#C8E6C9',
-                                edgecolor='#2E7D32', linewidth=2)
-    ax.add_patch(z_sem_box)
-    ax.text(20.5, y_vlm-1.3, 'z_sem\n[B, 768]',
-            ha='center', va='center', fontsize=9, weight='bold', color=colors['text'])
+    z_sem_box = draw_module_box(ax, 15.5, y_vlm-2.5, 3, 0.5,
+                               'z_sem', '#C8E6C9', '#2E7D32', 2,
+                               detail_text='[B, 768]')
     
-    # 箭头：输入到VLM
-    arrow1 = FancyArrowPatch((10.25, y_start-1.4), (11, y_vlm-0.5),
-                             arrowstyle='->', lw=2, color=colors['arrow'], 
-                             connectionstyle="arc3,rad=0.2")
-    ax.add_patch(arrow1)
+    # 箭头
+    draw_arrow(ax, 2.3, y_input-0.2, 3, y_vlm-0.75, colors['arrow_main'], 2)
+    draw_arrow(ax, 10.1, y_input-0.2, 7.25, y_vlm-0.75, colors['arrow_main'], 2)
+    draw_arrow(ax, 14.05, y_input-0.2, 11.75, y_vlm-0.75, colors['arrow_main'], 2)
+    draw_arrow(ax, 3, y_vlm-0.75, 7.25, y_vlm-0.75, colors['arrow_main'], 1.5)
+    draw_arrow(ax, 9.5, y_vlm-0.75, 11.75, y_vlm-0.75, colors['arrow_main'], 1.5)
+    draw_arrow(ax, 14, y_vlm-0.75, 17, y_vlm-2.25, colors['arrow_main'], 2)
     
-    arrow2 = FancyArrowPatch((14.75, y_start-1.4), (11, y_vlm-0.5),
-                             arrowstyle='->', lw=2, color=colors['arrow'],
-                             connectionstyle="arc3,rad=0.2")
-    ax.add_patch(arrow2)
-    
-    y_current = y_vlm - 3.0
+    y_pos = y_vlm - 3.2
     
     # ==================== Step 2: Visual Notes模块（3.1优势）====================
-    y_visual = y_current - 1.0
+    y_visual = y_pos - 0.5
     
-    # Visual Notes主框
-    visual_main_box = FancyBboxPatch((0.5, y_visual-2.5), 10.5, 2.5,
-                                      boxstyle="round,pad=0.1",
-                                      facecolor=colors['visual_notes'],
-                                      edgecolor='#1976D2', linewidth=3)
-    ax.add_patch(visual_main_box)
-    ax.text(5.75, y_visual-0.3, 'Step 2: 增强型Visual Notes (3.1优势)', 
-            ha='center', va='center', fontsize=14, weight='bold', color='#0D47A1')
+    visual_frame = Rectangle((0.2, y_visual-3.0), 19.6, 3.0,
+                             facecolor='white', edgecolor='#1976D2', linewidth=2.5,
+                             linestyle='--', zorder=0)
+    ax.add_patch(visual_frame)
+    ax.text(10, y_visual-0.1, 'Step 2: Enhanced Visual Notes with Cross-Attention (3.1 Advantage)', 
+            ha='center', va='top', fontsize=12, weight='bold', color='#0D47A1')
     
     # OCT Visual Notes
-    oct_visual_box = FancyBboxPatch((1, y_visual-1.8), 4.5, 1.8,
-                                      boxstyle="round,pad=0.05",
-                                      facecolor='#BBDEFB',
-                                      edgecolor='#1976D2', linewidth=2)
-    ax.add_patch(oct_visual_box)
-    ax.text(3.25, y_visual-0.9, 'OCT Visual Notes\nCross-Attention:\nText(Query) → Image(Key/Value)\nGating + Feature Refine',
-            ha='center', va='center', fontsize=8, color=colors['text'])
+    oct_visual_detail = 'Q_proj: Linear(768→768)\nK_proj: Linear(768→768)\nAttention: Q(text) @ K(image)\nGate: Sigmoid → Clamp(0.05, 1.0)\nModulation: feat × (mask + (1-mask)×β)\nRefine: LayerNorm → Linear → GELU'
+    draw_module_box(ax, 0.5, y_visual-2.5, 8.5, 2.3,
+                   'OCT Visual Notes\n(Cross-Attention)', colors['visual_notes'], '#1976D2', 2,
+                   detail_text=oct_visual_detail)
     
-    # Colpo Visual Notes
-    colpo_visual_box = FancyBboxPatch((6, y_visual-1.8), 4.5, 1.8,
-                                       boxstyle="round,pad=0.05",
-                                       facecolor='#BBDEFB',
-                                       edgecolor='#1976D2', linewidth=2)
-    ax.add_patch(colpo_visual_box)
-    ax.text(8.25, y_visual-0.9, 'Colposcopy Visual Notes\nCross-Attention:\nText(Query) → Image(Key/Value)\nGating + Feature Refine',
-            ha='center', va='center', fontsize=8, color=colors['text'])
-    
-    # 输出：f_oct_pooled, f_colpo_pooled
-    oct_pooled_box = FancyBboxPatch((1, y_visual-2.3), 4.5, 0.4,
-                                     boxstyle="round,pad=0.03",
-                                     facecolor='#90CAF9',
-                                     edgecolor='#1565C0', linewidth=1.5)
-    ax.add_patch(oct_pooled_box)
-    ax.text(3.25, y_visual-2.1, 'f_oct_pooled [B, 768]', 
-            ha='center', va='center', fontsize=8, weight='bold', color=colors['text'])
-    
-    colpo_pooled_box = FancyBboxPatch((6, y_visual-2.3), 4.5, 0.4,
-                                       boxstyle="round,pad=0.03",
-                                       facecolor='#90CAF9',
-                                       edgecolor='#1565C0', linewidth=1.5)
-    ax.add_patch(colpo_pooled_box)
-    ax.text(8.25, y_visual-2.1, 'f_colpo_pooled [B, 768]',
-            ha='center', va='center', fontsize=8, weight='bold', color=colors['text'])
-    
-    # 箭头：OCT和Colpo到Visual Notes
-    arrow3 = FancyArrowPatch((2.25, y_start-1.4), (3.25, y_visual-0.5),
-                             arrowstyle='->', lw=2, color=colors['arrow'],
-                             connectionstyle="arc3,rad=0.3")
-    ax.add_patch(arrow3)
-    
-    arrow4 = FancyArrowPatch((6.25, y_start-1.4), (8.25, y_visual-0.5),
-                             arrowstyle='->', lw=2, color=colors['arrow'],
-                             connectionstyle="arc3,rad=0.3")
-    ax.add_patch(arrow4)
-    
-    # 箭头：z_sem到Visual Notes
-    arrow5 = FancyArrowPatch((20.5, y_vlm-1.3), (5.75, y_visual-0.5),
-                             arrowstyle='->', lw=2, color='#4CAF50', linestyle='--',
-                             connectionstyle="arc3,rad=-0.4")
-    ax.add_patch(arrow5)
-    
-    y_current = y_visual - 3.0
-    
-    # ==================== Step 3: 自适应模态门控（3.1优势）====================
-    y_adaptive = y_current - 0.8
-    
-    adaptive_box = FancyBboxPatch((11.5, y_adaptive-1.5), 11, 1.5,
-                                   boxstyle="round,pad=0.1",
-                                   facecolor=colors['adaptive'],
-                                   edgecolor='#388E3C', linewidth=3)
-    ax.add_patch(adaptive_box)
-    ax.text(17, y_adaptive-0.2, 'Step 3: 自适应模态门控 (3.1优势)', 
-            ha='center', va='center', fontsize=14, weight='bold', color='#1B5E20')
-    
-    # 内部结构
-    adaptive_inner = FancyBboxPatch((12.5, y_adaptive-1.2), 9, 0.9,
-                                     boxstyle="round,pad=0.05",
-                                     facecolor='#C8E6C9',
-                                     edgecolor='#2E7D32', linewidth=2)
-    ax.add_patch(adaptive_inner)
-    ax.text(17, y_adaptive-0.75, 'Concat → Linear(1536→384) → LayerNorm → ReLU → Linear(384→2) → Softmax',
-            ha='center', va='center', fontsize=8, color=colors['text'])
-    ax.text(17, y_adaptive-1.0, '动态权重: w_oct, w_colpo → 加权融合',
-            ha='center', va='center', fontsize=9, weight='bold', color=colors['text'])
-    
-    # 输出：f_fused
-    fused_box = FancyBboxPatch((19.5, y_adaptive-1.2), 2, 0.9,
-                                boxstyle="round,pad=0.05",
-                                facecolor='#81C784',
-                                edgecolor='#1B5E20', linewidth=2)
-    ax.add_patch(fused_box)
-    ax.text(20.5, y_adaptive-0.75, 'f_fused\n[B, 768]',
-            ha='center', va='center', fontsize=9, weight='bold', color=colors['text'])
-    
-    # 箭头：Visual Notes到Adaptive Gating
-    arrow6 = FancyArrowPatch((3.25, y_visual-2.1), (15, y_adaptive-0.75),
-                             arrowstyle='->', lw=2, color=colors['arrow'],
-                             connectionstyle="arc3,rad=0.2")
-    ax.add_patch(arrow6)
-    
-    arrow7 = FancyArrowPatch((8.25, y_visual-2.1), (17, y_adaptive-0.75),
-                             arrowstyle='->', lw=2, color=colors['arrow'],
-                             connectionstyle="arc3,rad=0.2")
-    ax.add_patch(arrow7)
-    
-    y_current = y_adaptive - 2.0
-    
-    # ==================== Step 4: 双头因果编码器 ====================
-    y_dual = y_current - 0.8
-    
-    dual_box = FancyBboxPatch((0.5, y_dual-2.0), 11, 2.0,
-                               boxstyle="round,pad=0.1",
-                               facecolor=colors['dual_head'],
-                               edgecolor='#F57C00', linewidth=3)
-    ax.add_patch(dual_box)
-    ax.text(6, y_dual-0.2, 'Step 4: 双头因果编码器', 
-            ha='center', va='center', fontsize=14, weight='bold', color='#E65100')
-    
-    # Feature Projection
-    proj_box = FancyBboxPatch((1, y_dual-1.5), 4.5, 0.8,
-                               boxstyle="round,pad=0.05",
-                               facecolor='#FFE0B2',
-                               edgecolor='#E65100', linewidth=2)
-    ax.add_patch(proj_box)
-    ax.text(3.25, y_dual-1.1, 'Feature Projection\nLinear(768→1536) → LayerNorm\n→ GELU → Dropout → Linear(1536→768)',
-            ha='center', va='center', fontsize=8, color=colors['text'])
-    
-    # Causal Head
-    causal_box = FancyBboxPatch((6, y_dual-1.5), 4.5, 0.8,
-                                 boxstyle="round,pad=0.05",
-                                 facecolor='#C5E1A5',
-                                 edgecolor='#558B2F', linewidth=2)
-    ax.add_patch(causal_box)
-    ax.text(8.25, y_dual-1.1, 'Causal Head\nLinear → LayerNorm → GELU\n→ Dropout → Linear',
-            ha='center', va='center', fontsize=8, color=colors['text'])
-    
-    # Noise Head
-    noise_box = FancyBboxPatch((1, y_dual-2.3), 4.5, 0.7,
-                                boxstyle="round,pad=0.05",
-                                facecolor='#FFCCBC',
-                                edgecolor='#D84315', linewidth=2)
-    ax.add_patch(noise_box)
-    ax.text(3.25, y_dual-1.95, 'Noise Head\nLinear → LayerNorm → GELU\n→ Dropout → Linear',
-            ha='center', va='center', fontsize=8, color=colors['text'])
+    # Colposcopy Visual Notes
+    colpo_visual_detail = 'Same as OCT Visual Notes\nText-guided feature enhancement\nDynamic β (warm-up strategy)'
+    draw_module_box(ax, 9.5, y_visual-2.5, 8.5, 2.3,
+                   'Colposcopy Visual Notes\n(Cross-Attention)', colors['visual_notes'], '#1976D2', 2,
+                   detail_text=colpo_visual_detail)
     
     # 输出
-    z_causal_box = FancyBboxPatch((6, y_dual-2.3), 4.5, 0.7,
-                                   boxstyle="round,pad=0.05",
-                                   facecolor='#A5D6A7',
-                                   edgecolor='#2E7D32', linewidth=2)
-    ax.add_patch(z_causal_box)
-    ax.text(8.25, y_dual-1.95, 'z_causal [B, 768]',
-            ha='center', va='center', fontsize=9, weight='bold', color=colors['text'])
+    draw_module_box(ax, 2, y_visual-2.8, 5.5, 0.25,
+                   'f_oct_pooled [B, 768]', '#90CAF9', '#1565C0', 1.5)
+    draw_module_box(ax, 11, y_visual-2.8, 5.5, 0.25,
+                   'f_colpo_pooled [B, 768]', '#90CAF9', '#1565C0', 1.5)
     
-    z_noise_box = FancyBboxPatch((11.5, y_dual-2.3), 4.5, 0.7,
-                                  boxstyle="round,pad=0.05",
-                                  facecolor='#FFAB91',
-                                  edgecolor='#BF360C', linewidth=2)
-    ax.add_patch(z_noise_box)
-    ax.text(13.75, y_dual-1.95, 'z_noise [B, 768]',
-            ha='center', va='center', fontsize=9, weight='bold', color=colors['text'])
+    # 箭头
+    draw_arrow(ax, 2.05, y_input-0.2, 4.75, y_visual-1.35, colors['arrow_main'], 2)
+    draw_arrow(ax, 6.05, y_input-0.2, 13.75, y_visual-1.35, colors['arrow_main'], 2)
+    draw_arrow(ax, 17, y_vlm-2.25, 4.75, y_visual-1.35, colors['arrow_aux'], 2, 'dashed', 'z_sem')
+    draw_arrow(ax, 17, y_vlm-2.25, 13.75, y_visual-1.35, colors['arrow_aux'], 2, 'dashed', 'z_sem')
     
-    # 箭头：Adaptive Gating到Dual Head
-    arrow8 = FancyArrowPatch((20.5, y_adaptive-0.75), (3.25, y_dual-1.1),
-                             arrowstyle='->', lw=2, color=colors['arrow'],
-                             connectionstyle="arc3,rad=0.2")
-    ax.add_patch(arrow8)
+    y_pos = y_visual - 3.5
     
-    y_current = y_dual - 2.5
+    # ==================== Step 3: 自适应模态门控（3.1优势）====================
+    y_adaptive = y_pos - 0.5
     
-    # ==================== Step 5: 深度对齐模块（3.1优势）====================
-    y_align = y_current - 1.0
+    adaptive_frame = Rectangle((0.2, y_adaptive-1.5), 19.6, 1.5,
+                               facecolor='white', edgecolor='#388E3C', linewidth=2.5,
+                               linestyle='--', zorder=0)
+    ax.add_patch(adaptive_frame)
+    ax.text(10, y_adaptive-0.1, 'Step 3: Adaptive Modality Gating (3.1 Advantage)', 
+            ha='center', va='top', fontsize=12, weight='bold', color='#1B5E20')
     
-    align_main_box = FancyBboxPatch((16, y_align-3.5), 7.5, 3.5,
-                                     boxstyle="round,pad=0.1",
-                                     facecolor=colors['alignment'],
-                                     edgecolor='#7B1FA2', linewidth=3)
-    ax.add_patch(align_main_box)
-    ax.text(19.75, y_align-0.3, 'Step 6: 深度对齐模块 (3.1优势)', 
-            ha='center', va='center', fontsize=14, weight='bold', color='#4A148C')
+    adaptive_detail = 'Concat: [f_oct, f_colpo] → [B, 1536]\nScore Network: Linear(1536→384) → LayerNorm → ReLU → Linear(384→2)\nSoftmax: w_oct, w_colpo\nFusion: w_oct × f_oct + w_colpo × f_colpo'
+    draw_module_box(ax, 0.5, y_adaptive-1.2, 18, 1.0,
+                   'Adaptive Modality Gating', colors['adaptive'], '#388E3C', 2,
+                   detail_text=adaptive_detail)
+    
+    # 输出
+    draw_module_box(ax, 15.5, y_adaptive-1.3, 3, 0.3,
+                   'f_fused [B, 768]', '#81C784', '#1B5E20', 1.5)
+    
+    # 箭头
+    draw_arrow(ax, 4.75, y_visual-2.8, 9.5, y_adaptive-0.7, colors['arrow_main'], 2)
+    draw_arrow(ax, 13.75, y_visual-2.8, 9.5, y_adaptive-0.7, colors['arrow_main'], 2)
+    draw_arrow(ax, 9.5, y_adaptive-0.7, 17, y_adaptive-1.15, colors['arrow_main'], 2)
+    
+    y_pos = y_adaptive - 2.0
+    
+    # ==================== Step 4: 双头因果编码器 ====================
+    y_dual = y_pos - 0.5
+    
+    dual_frame = Rectangle((0.2, y_dual-2.5), 19.6, 2.5,
+                          facecolor='white', edgecolor='#F57C00', linewidth=2.5,
+                          linestyle='--', zorder=0)
+    ax.add_patch(dual_frame)
+    ax.text(10, y_dual-0.1, 'Step 4: Dual-Head Causal Encoder', 
+            ha='center', va='top', fontsize=12, weight='bold', color='#E65100')
+    
+    # Feature Projection
+    proj_detail = 'Linear(768→1536)\nLayerNorm(1536)\nGELU\nDropout(0.1)\nLinear(1536→768)'
+    draw_module_box(ax, 0.5, y_dual-2.0, 5, 1.7,
+                   'Feature Projection', colors['dual_head'], '#F57C00', 2,
+                   detail_text=proj_detail)
+    
+    # Causal Head
+    causal_detail = 'Linear(768→768)\nLayerNorm(768)\nGELU\nDropout(0.1)\nLinear(768→768)'
+    draw_module_box(ax, 6, y_dual-2.0, 5, 1.7,
+                   'Causal Head', '#C5E1A5', '#558B2F', 2,
+                   detail_text=causal_detail)
+    
+    # Noise Head
+    noise_detail = 'Linear(768→768)\nLayerNorm(768)\nGELU\nDropout(0.1)\nLinear(768→768)'
+    draw_module_box(ax, 11.5, y_dual-2.0, 5, 1.7,
+                   'Noise Head', '#FFCCBC', '#D84315', 2,
+                   detail_text=noise_detail)
+    
+    # 输出
+    draw_module_box(ax, 6.5, y_dual-2.3, 4, 0.25,
+                   'z_causal [B, 768]', '#A5D6A7', '#2E7D32', 1.5)
+    draw_module_box(ax, 12, y_dual-2.3, 4, 0.25,
+                   'z_noise [B, 768]', '#FFAB91', '#BF360C', 1.5)
+    
+    # 箭头
+    draw_arrow(ax, 17, y_adaptive-1.15, 3, y_dual-1.15, colors['arrow_main'], 2)
+    draw_arrow(ax, 3, y_dual-1.15, 8.5, y_dual-1.15, colors['arrow_main'], 1.5)
+    draw_arrow(ax, 8.5, y_dual-1.15, 14, y_dual-1.15, colors['arrow_main'], 1.5)
+    draw_arrow(ax, 8.5, y_dual-1.15, 8.5, y_dual-2.15, colors['arrow_main'], 1.5)
+    draw_arrow(ax, 14, y_dual-1.15, 14, y_dual-2.15, colors['arrow_main'], 1.5)
+    
+    y_pos = y_dual - 3.0
+    
+    # ==================== Step 5: 跨模态融合（3.1优势）====================
+    y_fusion = y_pos - 0.5
+    
+    fusion_frame = Rectangle((0.2, y_fusion-1.5), 19.6, 1.5,
+                            facecolor='white', edgecolor='#00695C', linewidth=2.5,
+                            linestyle='--', zorder=0)
+    ax.add_patch(fusion_frame)
+    ax.text(10, y_fusion-0.1, 'Step 5: Cross-Modal Fusion (3.1 Advantage)', 
+            ha='center', va='top', fontsize=12, weight='bold', color='#004D40')
+    
+    fusion_detail = 'MultiheadAttention (4 heads, batch_first=True)\nQ = z_causal [B, 1, 768]\nK = V = z_sem [B, 1, 768]\nOutput + Residual: f_final = Attention(Q,K,V) + z_causal'
+    draw_module_box(ax, 0.5, y_fusion-1.2, 18, 1.0,
+                   'Cross-Modal Fusion', colors['fusion'], '#00695C', 2,
+                   detail_text=fusion_detail)
+    
+    # 输出
+    draw_module_box(ax, 15.5, y_fusion-1.3, 3, 0.3,
+                   'f_final [B, 768]', '#4DB6AC', '#004D40', 1.5)
+    
+    # 箭头
+    draw_arrow(ax, 8.5, y_dual-2.15, 9.5, y_fusion-0.7, colors['arrow_main'], 2)
+    draw_arrow(ax, 17, y_vlm-2.25, 9.5, y_fusion-0.7, colors['arrow_aux'], 2, 'dashed', 'z_sem')
+    draw_arrow(ax, 9.5, y_fusion-0.7, 17, y_fusion-1.15, colors['arrow_main'], 2)
+    
+    y_pos = y_fusion - 2.0
+    
+    # ==================== Step 6: 分类器 ====================
+    y_cls = y_pos - 0.5
+    
+    cls_frame = Rectangle((0.2, y_cls-1.2), 19.6, 1.2,
+                         facecolor='white', edgecolor='#C62828', linewidth=2.5,
+                         linestyle='--', zorder=0)
+    ax.add_patch(cls_frame)
+    ax.text(10, y_cls-0.1, 'Step 6: Classifier', 
+            ha='center', va='top', fontsize=12, weight='bold', color='#B71C1C')
+    
+    cls_detail = 'Linear(768→384) → LayerNorm(384) → GELU → Dropout(0.2) → Linear(384→2)'
+    draw_module_box(ax, 0.5, y_cls-0.9, 18, 0.7,
+                   'Classifier', colors['classifier'], '#C62828', 2,
+                   detail_text=cls_detail)
+    
+    # 输出
+    draw_module_box(ax, 15.5, y_cls-1.0, 3, 0.3,
+                   'Prediction [B, 2]', '#EF5350', '#B71C1C', 1.5)
+    
+    # 箭头
+    draw_arrow(ax, 17, y_fusion-1.15, 17, y_cls-0.55, colors['arrow_main'], 2)
+    
+    y_pos = y_cls - 1.7
+    
+    # ==================== Step 7: 深度对齐模块（3.1优势）====================
+    y_align = y_pos - 0.5
+    
+    align_frame = Rectangle((0.2, y_align-4.0), 19.6, 4.0,
+                           facecolor='white', edgecolor='#7B1FA2', linewidth=2.5,
+                           linestyle='--', zorder=0)
+    ax.add_patch(align_frame)
+    ax.text(10, y_align-0.1, 'Step 7: Deep Alignment Module (3.1 Advantage)', 
+            ha='center', va='top', fontsize=12, weight='bold', color='#4A148C')
     
     # Image投影头
-    img_proj_box = FancyBboxPatch((16.5, y_align-1.8), 3, 1.3,
-                                   boxstyle="round,pad=0.05",
-                                   facecolor='#E1BEE7',
-                                   edgecolor='#7B1FA2', linewidth=2)
-    ax.add_patch(img_proj_box)
-    ax.text(18, y_align-1.15, 'Image投影头\nLinear(768→768)\nLayerNorm → GELU\nDropout → Linear(768→256)\nLayerNorm',
-            ha='center', va='center', fontsize=7, color=colors['text'])
+    img_proj_detail = 'Linear(768→768, bias=False)\nLayerNorm(768)\nGELU\nDropout(0.1)\nLinear(768→256, bias=False)\nLayerNorm(256)'
+    draw_module_box(ax, 0.5, y_align-2.5, 4.5, 2.2,
+                   'Image Projection\nHead', '#E1BEE7', '#7B1FA2', 2,
+                   detail_text=img_proj_detail)
     
     # Text投影头
-    txt_proj_box = FancyBboxPatch((20, y_align-1.8), 3, 1.3,
-                                   boxstyle="round,pad=0.05",
-                                   facecolor='#E1BEE7',
-                                   edgecolor='#7B1FA2', linewidth=2)
-    ax.add_patch(txt_proj_box)
-    ax.text(21.5, y_align-1.15, 'Text投影头\nLinear(768→768)\nLayerNorm → GELU\nDropout → Linear(768→256)\nLayerNorm',
-            ha='center', va='center', fontsize=7, color=colors['text'])
+    txt_proj_detail = 'Linear(768→768, bias=False)\nLayerNorm(768)\nGELU\nDropout(0.1)\nLinear(768→256, bias=False)\nLayerNorm(256)'
+    draw_module_box(ax, 5.5, y_align-2.5, 4.5, 2.2,
+                   'Text Projection\nHead', '#E1BEE7', '#7B1FA2', 2,
+                   detail_text=txt_proj_detail)
     
     # 共享语义空间投影
-    shared_box = FancyBboxPatch((16.5, y_align-2.8), 6.5, 0.8,
-                                 boxstyle="round,pad=0.05",
-                                 facecolor='#CE93D8',
-                                 edgecolor='#6A1B9A', linewidth=2)
-    ax.add_patch(shared_box)
-    ax.text(19.75, y_align-2.4, '共享语义空间投影: Linear(256→256) → LayerNorm → GELU',
-            ha='center', va='center', fontsize=8, color=colors['text'])
+    shared_detail = 'Shared Projection:\nLinear(256→256, bias=False)\nLayerNorm(256)\nGELU'
+    draw_module_box(ax, 10.5, y_align-2.5, 4.5, 1.0,
+                   'Shared Semantic\nSpace Projection', '#CE93D8', '#6A1B9A', 2,
+                   detail_text=shared_detail)
     
     # 归一化和温度
-    norm_box = FancyBboxPatch((16.5, y_align-3.3), 6.5, 0.4,
-                               boxstyle="round,pad=0.03",
-                               facecolor='#BA68C8',
-                               edgecolor='#4A148C', linewidth=1.5)
-    ax.add_patch(norm_box)
-    ax.text(19.75, y_align-3.1, 'L2归一化 + 温度系数(τ) → InfoNCE Loss + L2 Loss',
-            ha='center', va='center', fontsize=8, weight='bold', color=colors['text'])
+    norm_detail = 'L2 Normalization\nTemperature: τ = exp(logit_scale)\nClamp: [0.1, 50.0]'
+    draw_module_box(ax, 10.5, y_align-1.4, 4.5, 0.8,
+                   'Normalization &\nTemperature', '#BA68C8', '#4A148C', 2,
+                   detail_text=norm_detail)
     
-    # 箭头：z_causal和z_sem到对齐模块
-    arrow9 = FancyArrowPatch((8.25, y_dual-1.95), (18, y_align-1.15),
-                             arrowstyle='->', lw=2, color='#4CAF50', linestyle='--',
-                             connectionstyle="arc3,rad=-0.3")
-    ax.add_patch(arrow9)
+    # InfoNCE Loss
+    infonce_detail = 'Similarity Matrix:\nlogits = τ × (z_img_norm @ z_txt_norm^T)\nInfoNCE Loss:\nL_ce = (CE(logits_img, labels) + CE(logits_txt, labels)) / 2'
+    draw_module_box(ax, 15.5, y_align-2.5, 4, 1.3,
+                   'InfoNCE Loss', '#F8BBD0', '#AD1457', 2,
+                   detail_text=infonce_detail)
     
-    arrow10 = FancyArrowPatch((20.5, y_vlm-1.3), (21.5, y_align-1.15),
-                              arrowstyle='->', lw=2, color='#4CAF50', linestyle='--',
-                              connectionstyle="arc3,rad=-0.5")
-    ax.add_patch(arrow10)
+    # L2辅助损失
+    l2_detail = 'L2 Distance Loss:\nL_l2 = mean(||z_img_norm - z_txt_norm||_2)\nCombined: L_align = L_ce + 0.1 × L_l2'
+    draw_module_box(ax, 15.5, y_align-1.1, 4, 1.3,
+                   'L2 Auxiliary Loss', '#F48FB1', '#AD1457', 2,
+                   detail_text=l2_detail)
     
-    y_current = y_align - 4.0
+    # Recall@1计算
+    recall_detail = 'Recall@1:\npred_i2t = argmax(logits_img, dim=1)\nRecall = mean(pred_i2t == labels)'
+    draw_module_box(ax, 10.5, y_align-3.7, 9, 0.5,
+                   'Recall@1 Metric', '#FCE4EC', '#C2185B', 1.5,
+                   detail_text=recall_detail)
     
-    # ==================== Step 6: 跨模态融合（3.1优势）====================
-    y_fusion = y_current - 0.8
+    # 箭头
+    draw_arrow(ax, 8.5, y_dual-2.15, 2.75, y_align-1.4, colors['arrow_aux'], 2, 'dashed', 'z_causal')
+    draw_arrow(ax, 17, y_vlm-2.25, 7.75, y_align-1.4, colors['arrow_aux'], 2, 'dashed', 'z_sem')
+    draw_arrow(ax, 2.75, y_align-1.4, 7.75, y_align-1.4, colors['arrow_main'], 1.5)
+    draw_arrow(ax, 7.75, y_align-1.4, 12.75, y_align-2.0, colors['arrow_main'], 1.5)
+    draw_arrow(ax, 2.75, y_align-1.4, 12.75, y_align-2.0, colors['arrow_main'], 1.5)
+    draw_arrow(ax, 12.75, y_align-2.0, 12.75, y_align-1.0, colors['arrow_main'], 1.5)
+    draw_arrow(ax, 12.75, y_align-1.0, 17.5, y_align-1.85, colors['arrow_main'], 1.5)
+    draw_arrow(ax, 12.75, y_align-1.0, 17.5, y_align-0.45, colors['arrow_main'], 1.5)
     
-    fusion_box = FancyBboxPatch((0.5, y_fusion-1.5), 11, 1.5,
-                                 boxstyle="round,pad=0.1",
-                                 facecolor=colors['fusion'],
-                                 edgecolor='#00695C', linewidth=3)
-    ax.add_patch(fusion_box)
-    ax.text(6, y_fusion-0.2, 'Step 5: 跨模态融合 (3.1优势)', 
-            ha='center', va='center', fontsize=14, weight='bold', color='#004D40')
-    
-    # MultiheadAttention
-    attn_box = FancyBboxPatch((1, y_fusion-1.2), 9, 0.9,
-                               boxstyle="round,pad=0.05",
-                               facecolor='#B2DFDB',
-                               edgecolor='#00695C', linewidth=2)
-    ax.add_patch(attn_box)
-    ax.text(5.5, y_fusion-0.75, 'MultiheadAttention (4 heads)\nQ=z_causal, K=V=z_sem → Residual Connection',
-            ha='center', va='center', fontsize=9, color=colors['text'])
-    
-    # 输出：f_final
-    final_box = FancyBboxPatch((10.5, y_fusion-1.2), 2, 0.9,
-                                boxstyle="round,pad=0.05",
-                                facecolor='#4DB6AC',
-                                edgecolor='#004D40', linewidth=2)
-    ax.add_patch(final_box)
-    ax.text(11.5, y_fusion-0.75, 'f_final\n[B, 768]',
-            ha='center', va='center', fontsize=9, weight='bold', color=colors['text'])
-    
-    # 箭头：z_causal和z_sem到Fusion
-    arrow11 = FancyArrowPatch((8.25, y_dual-1.95), (5.5, y_fusion-0.75),
-                             arrowstyle='->', lw=2, color=colors['arrow'],
-                             connectionstyle="arc3,rad=0.2")
-    ax.add_patch(arrow11)
-    
-    arrow12 = FancyArrowPatch((20.5, y_vlm-1.3), (5.5, y_fusion-0.75),
-                             arrowstyle='->', lw=2, color='#4CAF50', linestyle='--',
-                             connectionstyle="arc3,rad=-0.6")
-    ax.add_patch(arrow12)
-    
-    y_current = y_fusion - 2.0
-    
-    # ==================== Step 7: 分类器 ====================
-    y_cls = y_current - 0.8
-    
-    cls_box = FancyBboxPatch((0.5, y_cls-1.2), 11, 1.2,
-                              boxstyle="round,pad=0.1",
-                              facecolor=colors['classifier'],
-                              edgecolor='#C62828', linewidth=3)
-    ax.add_patch(cls_box)
-    ax.text(6, y_cls-0.2, 'Step 7: 分类器', 
-            ha='center', va='center', fontsize=14, weight='bold', color='#B71C1C')
-    
-    cls_inner = FancyBboxPatch((1, y_cls-0.9), 9, 0.6,
-                                boxstyle="round,pad=0.05",
-                                facecolor='#FFCDD2',
-                                edgecolor='#C62828', linewidth=2)
-    ax.add_patch(cls_inner)
-    ax.text(5.5, y_cls-0.6, 'Linear(768→384) → LayerNorm → GELU → Dropout(0.2) → Linear(384→2)',
-            ha='center', va='center', fontsize=9, color=colors['text'])
-    
-    # 输出：预测
-    pred_box = FancyBboxPatch((10.5, y_cls-0.9), 2, 0.6,
-                               boxstyle="round,pad=0.05",
-                               facecolor='#EF5350',
-                               edgecolor='#B71C1C', linewidth=2)
-    ax.add_patch(pred_box)
-    ax.text(11.5, y_cls-0.6, '预测\n[B, 2]',
-            ha='center', va='center', fontsize=9, weight='bold', color='white')
-    
-    # 箭头：Fusion到Classifier
-    arrow13 = FancyArrowPatch((11.5, y_fusion-0.75), (11.5, y_cls-0.6),
-                             arrowstyle='->', lw=2, color=colors['arrow'])
-    ax.add_patch(arrow13)
-    
-    y_current = y_cls - 1.5
+    y_pos = y_align - 4.5
     
     # ==================== 损失函数模块 ====================
-    y_loss = y_current - 0.5
+    y_loss = y_pos - 0.3
     
-    loss_main_box = FancyBboxPatch((13, y_loss-4.5), 10.5, 4.5,
-                                     boxstyle="round,pad=0.1",
-                                     facecolor=colors['loss'],
-                                     edgecolor='#AD1457', linewidth=3)
-    ax.add_patch(loss_main_box)
-    ax.text(18.25, y_loss-0.3, '损失函数模块', 
-            ha='center', va='center', fontsize=14, weight='bold', color='#880E4F')
+    loss_frame = Rectangle((0.2, y_loss-3.5), 19.6, 3.5,
+                          facecolor='white', edgecolor='#AD1457', linewidth=2.5,
+                          linestyle='--', zorder=0)
+    ax.add_patch(loss_frame)
+    ax.text(10, y_loss-0.1, 'Loss Functions', 
+            ha='center', va='top', fontsize=12, weight='bold', color='#880E4F')
     
-    # OT Loss
-    ot_loss_box = FancyBboxPatch((13.5, y_loss-1.2), 4.5, 0.8,
-                                  boxstyle="round,pad=0.05",
-                                  facecolor='#F8BBD0',
-                                  edgecolor='#AD1457', linewidth=2)
-    ax.add_patch(ot_loss_box)
-    ax.text(15.75, y_loss-0.8, 'OT Loss (Sinkhorn)\nλ_ot = 0.5',
-            ha='center', va='center', fontsize=9, color=colors['text'])
-    
-    # Alignment Loss
-    align_loss_box = FancyBboxPatch((18.5, y_loss-1.2), 4.5, 0.8,
-                                    boxstyle="round,pad=0.05",
-                                    facecolor='#F48FB1',
-                                    edgecolor='#AD1457', linewidth=2)
-    ax.add_patch(align_loss_box)
-    ax.text(20.75, y_loss-0.8, 'Alignment Loss\n(InfoNCE + L2)\nλ_align = 0.5',
-            ha='center', va='center', fontsize=9, color=colors['text'])
-    
-    # Consistency Loss
-    consist_loss_box = FancyBboxPatch((13.5, y_loss-2.2), 4.5, 0.8,
-                                       boxstyle="round,pad=0.05",
-                                       facecolor='#F8BBD0',
-                                       edgecolor='#AD1457', linewidth=2)
-    ax.add_patch(consist_loss_box)
-    ax.text(15.75, y_loss-1.8, 'Consistency Loss\n(Counterfactual)\nλ_consist = 0.2',
-            ha='center', va='center', fontsize=9, color=colors['text'])
-    
-    # Adversarial Loss
-    adv_loss_box = FancyBboxPatch((18.5, y_loss-2.2), 4.5, 0.8,
-                                   boxstyle="round,pad=0.05",
-                                   facecolor='#F48FB1',
-                                   edgecolor='#AD1457', linewidth=2)
-    ax.add_patch(adv_loss_box)
-    ax.text(20.75, y_loss-1.8, 'Adversarial Loss\n(Center Discriminator)\nλ_adv = 0.5',
-            ha='center', va='center', fontsize=9, color=colors['text'])
-    
-    # Sparse Loss
-    sparse_loss_box = FancyBboxPatch((13.5, y_loss-3.2), 4.5, 0.8,
-                                      boxstyle="round,pad=0.05",
-                                      facecolor='#F8BBD0',
-                                      edgecolor='#AD1457', linewidth=2)
-    ax.add_patch(sparse_loss_box)
-    ax.text(15.75, y_loss-2.8, 'Sparse Loss\n(Attention Entropy)\nλ_sparse = 0.05',
-            ha='center', va='center', fontsize=9, color=colors['text'])
-    
-    # Classification Loss
-    cls_loss_box = FancyBboxPatch((18.5, y_loss-3.2), 4.5, 0.8,
-                                   boxstyle="round,pad=0.05",
-                                   facecolor='#F48FB1',
-                                   edgecolor='#AD1457', linewidth=2)
-    ax.add_patch(cls_loss_box)
-    ax.text(20.75, y_loss-2.8, 'Classification Loss\n(Focal Loss)\nλ_cls = 2.0',
-            ha='center', va='center', fontsize=9, color=colors['text'])
-    
-    # Memory Bank
-    memory_box = FancyBboxPatch((13.5, y_loss-4.2), 9.5, 0.8,
-                                 boxstyle="round,pad=0.05",
-                                 facecolor='#EC407A',
-                                 edgecolor='#880E4F', linewidth=2)
-    ax.add_patch(memory_box)
-    ax.text(18.25, y_loss-3.8, 'Memory Bank: 存储z_noise用于生成反事实噪声',
-            ha='center', va='center', fontsize=9, weight='bold', color='white')
-    
-    # 箭头：各个模块到损失函数
-    arrow14 = FancyArrowPatch((8.25, y_dual-1.95), (15.75, y_loss-0.8),
-                             arrowstyle='->', lw=1.5, color='#E91E63', linestyle=':',
-                             connectionstyle="arc3,rad=0.4")
-    ax.add_patch(arrow14)
-    
-    arrow15 = FancyArrowPatch((20.5, y_vlm-1.3), (20.75, y_loss-0.8),
-                             arrowstyle='->', lw=1.5, color='#E91E63', linestyle=':',
-                             connectionstyle="arc3,rad=-0.5")
-    ax.add_patch(arrow15)
-    
-    arrow16 = FancyArrowPatch((13.75, y_dual-1.95), (15.75, y_loss-1.8),
-                             arrowstyle='->', lw=1.5, color='#E91E63', linestyle=':',
-                             connectionstyle="arc3,rad=0.3")
-    ax.add_patch(arrow16)
-    
-    arrow17 = FancyArrowPatch((11.5, y_cls-0.6), (20.75, y_loss-2.8),
-                             arrowstyle='->', lw=1.5, color='#E91E63', linestyle=':',
-                             connectionstyle="arc3,rad=-0.3")
-    ax.add_patch(arrow17)
-    
-    # ==================== 图例 ====================
-    legend_y = 2.5
-    legend_items = [
-        ('输入层', colors['input']),
-        ('VLM模块 (4.0优势)', colors['vlm']),
-        ('Visual Notes (3.1优势)', colors['visual_notes']),
-        ('自适应门控 (3.1优势)', colors['adaptive']),
-        ('双头编码器', colors['dual_head']),
-        ('对齐模块 (3.1优势)', colors['alignment']),
-        ('融合模块', colors['fusion']),
-        ('分类器', colors['classifier']),
-        ('损失函数', colors['loss'])
+    # 损失函数网格布局
+    loss_modules = [
+        ('OT Loss\n(Sinkhorn)', 'λ_ot = 0.5', 0.5, y_loss-1.0, 3.5, 0.8),
+        ('Alignment Loss\n(InfoNCE + L2)', 'λ_align = 0.5', 4.5, y_loss-1.0, 3.5, 0.8),
+        ('Consistency Loss\n(Counterfactual)', 'λ_consist = 0.2', 8.5, y_loss-1.0, 3.5, 0.8),
+        ('Adversarial Loss\n(Center Discriminator)', 'λ_adv = 0.5', 12.5, y_loss-1.0, 3.5, 0.8),
+        ('Sparse Loss\n(Attention Entropy)', 'λ_sparse = 0.05', 16.5, y_loss-1.0, 3.5, 0.8),
+        ('Classification Loss\n(Focal Loss)', 'λ_cls = 2.0', 0.5, y_loss-2.0, 3.5, 0.8),
+        ('Memory Bank\nUpdate', 'Store z_noise\nby center', 4.5, y_loss-2.0, 3.5, 0.8),
+        ('Counterfactual\nGeneration', 'z_causal_cf = z_causal\n+ z_noise_cf', 8.5, y_loss-2.0, 3.5, 0.8),
+        ('Total Loss', 'L = λ_cls×L_cls + λ_ot×L_ot\n+ λ_align×L_align + λ_consist×L_consist\n+ λ_adv×L_adv + λ_sparse×L_sparse', 12.5, y_loss-2.0, 7.5, 0.8),
     ]
     
-    for i, (label, color) in enumerate(legend_items):
-        x_pos = 0.5 + (i % 3) * 7.5
-        y_pos = legend_y - (i // 3) * 0.4
-        rect = Rectangle((x_pos, y_pos), 0.3, 0.25, facecolor=color, edgecolor='black', linewidth=1)
-        ax.add_patch(rect)
-        ax.text(x_pos + 0.4, y_pos + 0.125, label, fontsize=9, va='center', color=colors['text'])
+    for i, (title, detail, x, y, w, h) in enumerate(loss_modules):
+        if i < 5:
+            color = '#F8BBD0'
+            edge = '#AD1457'
+        elif i < 8:
+            color = '#F48FB1'
+            edge = '#C2185B'
+        else:
+            color = '#EC407A'
+            edge = '#880E4F'
+        
+        draw_module_box(ax, x, y, w, h, title, color, edge, 2, detail_text=detail)
     
-    # 标题
-    ax.text(12, 31.5, 'Bio-COT 3.2 Enhanced Architecture', 
-            ha='center', va='center', fontsize=20, weight='bold', color='#1A237E')
-    ax.text(12, 31.0, '融合3.1和4.0的优势：保留3.1的所有优点 + 引入4.0的计算效率和知识复杂度', 
-            ha='center', va='center', fontsize=12, style='italic', color='#424242')
+    # 损失连接箭头（虚线）
+    draw_arrow(ax, 8.5, y_dual-2.15, 2.25, y_loss-0.6, colors['arrow_loss'], 1.5, 'dotted', 'z_causal')
+    draw_arrow(ax, 17, y_vlm-2.25, 6.25, y_loss-0.6, colors['arrow_loss'], 1.5, 'dotted', 'z_sem')
+    draw_arrow(ax, 14, y_dual-2.15, 10.25, y_loss-0.6, colors['arrow_loss'], 1.5, 'dotted', 'z_noise')
+    draw_arrow(ax, 17, y_cls-0.55, 2.25, y_loss-1.6, colors['arrow_loss'], 1.5, 'dotted', 'pred')
+    draw_arrow(ax, 4.75, y_visual-1.35, 18.25, y_loss-1.6, colors['arrow_loss'], 1.5, 'dotted', 'attn')
+    
+    # ==================== 图例 ====================
+    legend_y = 1.5
+    legend_x = 0.5
+    
+    # 图例框
+    legend_frame = Rectangle((legend_x, legend_y-1.2), 19, 1.2,
+                            facecolor='#FAFAFA', edgecolor='#BDBDBD', linewidth=1.5,
+                            zorder=0)
+    ax.add_patch(legend_frame)
+    ax.text(legend_x + 9.5, legend_y-0.2, 'Legend', 
+            ha='center', va='top', fontsize=11, weight='bold', color=colors['text'])
+    
+    # 图例项
+    legend_items = [
+        ('Main Data Flow', colors['arrow_main'], '-'),
+        ('Auxiliary Connection', colors['arrow_aux'], '--'),
+        ('Loss Connection', colors['arrow_loss'], ':'),
+        ('3.1 Advantage', '#1976D2', 'solid'),
+        ('4.0 Advantage', '#FF6F00', 'solid'),
+    ]
+    
+    for i, (label, color, style) in enumerate(legend_items):
+        x = legend_x + 0.3 + (i % 3) * 6
+        y = legend_y - 0.5 - (i // 3) * 0.4
+        
+        if style == '-':
+            arrow = FancyArrowPatch((x, y), (x + 0.8, y),
+                                   arrowstyle='->', lw=2, color=color)
+        elif style == '--':
+            arrow = FancyArrowPatch((x, y), (x + 0.8, y),
+                                   arrowstyle='->', lw=2, color=color, linestyle='--')
+        else:
+            arrow = FancyArrowPatch((x, y), (x + 0.8, y),
+                                   arrowstyle='->', lw=2, color=color, linestyle=':')
+        ax.add_patch(arrow)
+        ax.text(x + 1.0, y, label, fontsize=8, va='center', color=colors['text'])
     
     # 保存图片
     output_dir = Path(__file__).parent
     output_dir.mkdir(exist_ok=True)
     
-    # 保存PNG
+    # 保存PNG（高分辨率）
     png_path = output_dir / 'bio_cot_v3_2_architecture.png'
-    plt.savefig(png_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(png_path, dpi=300, bbox_inches='tight', facecolor='white', 
+                edgecolor='none', pad_inches=0.1)
     print(f"✅ 架构图已保存: {png_path}")
     
     # 保存PDF
     pdf_path = output_dir / 'bio_cot_v3_2_architecture.pdf'
-    plt.savefig(pdf_path, bbox_inches='tight', facecolor='white')
+    plt.savefig(pdf_path, bbox_inches='tight', facecolor='white',
+                edgecolor='none', pad_inches=0.1)
     print(f"✅ PDF已保存: {pdf_path}")
     
     plt.close()
@@ -595,9 +524,8 @@ def draw_bio_cot_v3_2_architecture():
 
 
 if __name__ == '__main__':
-    print("🎨 开始绘制Bio-COT 3.2架构图...")
+    print("🎨 开始绘制Bio-COT 3.2架构图（顶刊风格）...")
     png_path, pdf_path = draw_bio_cot_v3_2_architecture()
     print(f"✅ 完成！")
     print(f"   PNG: {png_path}")
     print(f"   PDF: {pdf_path}")
-
