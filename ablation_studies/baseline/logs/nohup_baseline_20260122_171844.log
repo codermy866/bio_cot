@@ -1,0 +1,596 @@
+✅ 自动选择GPU 0 (使用率: 12%)
+✅ 检测到消融实验，强制设置 num_epochs = 20
+================================================================================
+Bio-COT 3.1 Logic Loop: 以医学先验为核心的自适应推理系统
+核心升级:
+  1. Adaptive Modality Gating (自适应模态门控)
+  2. Enhanced Visual Notes (Cross-Attention机制)
+  3. Semantic-Visual Alignment Loop (语义-视觉对齐闭环)
+================================================================================
+数据路径: /data2/hmy/5Center_datas/5centers_multi_positive_sites_multimodal
+VLM缓存路径: ../exp_bio4.0/data/vlm_profiles_v1.json
+Text Encoder: microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext
+模块配置:
+  - use_visual_notes: False
+  - use_ot: False
+  - use_dual: False
+  - use_cross_attn: False
+================================================================================
+✅ 使用环境变量CUDA_VISIBLE_DEVICES=0，映射到cuda:0
+✅ 最终使用GPU设备: cuda:0
+
+📊 开始加载数据集...
+📊 帧数平衡策略:
+   阳性病人中位数帧数: 20
+   设置的目标帧数: 20
+   统一使用帧数: 20 (阴性和阳性病人保持一致，提高预测准确率)
+✅ 从 /data2/hmy/5Center_datas/5centers_multi_positive_sites_multimodal/internal_train/labels.csv 加载了 669 个样本
+   标签分布: 阴性=451, 阳性=218
+   中心分布: {0: 11, 1: 62, 2: 276, 3: 320}
+✅ Bio-COT 3.2数据集初始化完成（使用VLM动态检索）
+  ✅ 训练集加载完成: 669 个样本
+📊 帧数平衡策略:
+   阳性病人中位数帧数: 20
+   设置的目标帧数: 20
+   统一使用帧数: 20 (阴性和阳性病人保持一致，提高预测准确率)
+✅ 从 /data2/hmy/5Center_datas/5centers_multi_positive_sites_multimodal/internal_val/labels.csv 加载了 168 个样本
+   标签分布: 阴性=113, 阳性=55
+   中心分布: {0: 6, 1: 10, 2: 68, 3: 84}
+✅ Bio-COT 3.2数据集初始化完成（使用VLM动态检索）
+  ✅ 验证集加载完成: 168 个样本
+
+📊 正在创建Bio-COT 3.0模型...
+📥 正在加载VLM Profiles: ../exp_bio4.0/data/vlm_profiles_v1.json
+✅ 加载了 102705 个VLM描述
+📥 正在加载冻结的Text Encoder: microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext
+⚠️ Text Encoder加载失败: Due to a serious vulnerability issue in `torch.load`, even with `weights_only=True`, we now require users to upgrade torch to at least v2.6 in order to use the function. This version restriction does not apply when loading files with safetensors.
+See the vulnerability report here https://nvd.nist.gov/vuln/detail/CVE-2025-32434
+   将使用简化的文本编码器（仅用于测试）
+✅ Adapter创建成功 (文本维度: 768 -> 视觉维度: 768)
+✅ 模型创建完成
+   总参数量: 4,306,437
+   可训练参数量: 4,306,437
+
+================================================================================
+🚀 开始训练...
+================================================================================
+
+================================================================================
+📊 Epoch 1/20 - 训练阶段
+================================================================================
+当前Beta: 1.000 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 1 训练统计:
+     - 平均损失: 0.100261
+     - 准确率 (Accuracy): 0.5737
+     - 平衡准确率 (Balanced Accuracy): 0.5737
+     - F1-Score: 0.5737
+     - MCC (Matthews): 0.1475
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.5723
+     - Recall/Sensitivity (敏感度): 0.5833
+     - Specificity (特异性): 0.5641
+     - NPV (阴性预测值): 0.5752
+     - Precision (加权平均): 0.5737
+     - Recall (加权平均): 0.5737
+     - 分类损失: 0.100261
+     - 🔥 对齐损失 (Alignment): 4.112165
+     - ✅ 对齐召回率 (Recall@1): 0.0272
+
+  📊 Epoch 1/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([36, 12], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.0430, 0.7277]
+
+  📊 Epoch 1 验证统计:
+     - 平均损失: 0.046973
+     - 准确率 (Accuracy): 0.6845
+     - 平衡准确率 (Balanced Accuracy): 0.5928
+     - AUC (ROC): 0.6568
+     - PR-AUC: 0.4538
+     - F1-Score: 0.6607
+     - MCC (Matthews): 0.2169
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.5294
+     - Recall/Sensitivity (敏感度, TPR): 0.3273
+     - Specificity (特异性, TNR): 0.8584
+     - NPV (阴性预测值): 0.7239
+     - Precision (加权平均): 0.6602
+     - Recall (加权平均): 0.6845
+     - 🔗 对齐召回率 (Recall@1): 0.0104
+  ✅ 保存最佳模型 (AUC: 0.6568)
+
+================================================================================
+📊 Epoch 2/20 - 训练阶段
+================================================================================
+当前Beta: 1.000 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 2 训练统计:
+     - 平均损失: 0.050291
+     - 准确率 (Accuracy): 0.6571
+     - 平衡准确率 (Balanced Accuracy): 0.6543
+     - F1-Score: 0.6568
+     - MCC (Matthews): 0.3090
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.6784
+     - Recall/Sensitivity (敏感度): 0.6905
+     - Specificity (特异性): 0.6181
+     - NPV (阴性预测值): 0.6312
+     - Precision (加权平均): 0.6566
+     - Recall (加权平均): 0.6571
+     - 分类损失: 0.050291
+     - 🔥 对齐损失 (Alignment): 4.114087
+     - ✅ 对齐召回率 (Recall@1): 0.0224
+
+  📊 Epoch 2/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([33, 15], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.1197, 0.7979]
+
+  📊 Epoch 2 验证统计:
+     - 平均损失: 0.036360
+     - 准确率 (Accuracy): 0.7440
+     - 平衡准确率 (Balanced Accuracy): 0.6558
+     - AUC (ROC): 0.7519
+     - PR-AUC: 0.6421
+     - F1-Score: 0.7220
+     - MCC (Matthews): 0.3723
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.6875
+     - Recall/Sensitivity (敏感度, TPR): 0.4000
+     - Specificity (特异性, TNR): 0.9115
+     - NPV (阴性预测值): 0.7574
+     - Precision (加权平均): 0.7345
+     - Recall (加权平均): 0.7440
+     - 🔗 对齐召回率 (Recall@1): 0.0365
+  ✅ 保存最佳模型 (AUC: 0.7519)
+
+================================================================================
+📊 Epoch 3/20 - 训练阶段
+================================================================================
+当前Beta: 1.000 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 3 训练统计:
+     - 平均损失: 0.043193
+     - 准确率 (Accuracy): 0.6683
+     - 平衡准确率 (Balanced Accuracy): 0.6682
+     - F1-Score: 0.6682
+     - MCC (Matthews): 0.3364
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.6698
+     - Recall/Sensitivity (敏感度): 0.6762
+     - Specificity (特异性): 0.6602
+     - NPV (阴性预测值): 0.6667
+     - Precision (加权平均): 0.6683
+     - Recall (加权平均): 0.6683
+     - 分类损失: 0.043193
+     - 🔥 对齐损失 (Alignment): 4.073064
+     - ✅ 对齐召回率 (Recall@1): 0.0353
+
+  📊 Epoch 3/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([33, 15], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.0888, 0.7675]
+
+  📊 Epoch 3 验证统计:
+     - 平均损失: 0.033815
+     - 准确率 (Accuracy): 0.7798
+     - 平衡准确率 (Balanced Accuracy): 0.7056
+     - AUC (ROC): 0.7818
+     - PR-AUC: 0.6946
+     - F1-Score: 0.7653
+     - MCC (Matthews): 0.4703
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.7500
+     - Recall/Sensitivity (敏感度, TPR): 0.4909
+     - Specificity (特异性, TNR): 0.9204
+     - NPV (阴性预测值): 0.7879
+     - Precision (加权平均): 0.7755
+     - Recall (加权平均): 0.7798
+     - 🔗 对齐召回率 (Recall@1): 0.0156
+  ✅ 保存最佳模型 (AUC: 0.7818)
+
+================================================================================
+📊 Epoch 4/20 - 训练阶段
+================================================================================
+当前Beta: 1.000 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 4 训练统计:
+     - 平均损失: 0.040260
+     - 准确率 (Accuracy): 0.6827
+     - 平衡准确率 (Balanced Accuracy): 0.6821
+     - F1-Score: 0.6824
+     - MCC (Matthews): 0.3650
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.6849
+     - Recall/Sensitivity (敏感度): 0.6536
+     - Specificity (特异性): 0.7107
+     - NPV (阴性预测值): 0.6807
+     - Precision (加权平均): 0.6828
+     - Recall (加权平均): 0.6827
+     - 分类损失: 0.040260
+     - 🔥 对齐损失 (Alignment): 4.089947
+     - ✅ 对齐召回率 (Recall@1): 0.0240
+
+  📊 Epoch 4/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([32, 16], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.1676, 0.8238]
+
+  📊 Epoch 4 验证统计:
+     - 平均损失: 0.031960
+     - 准确率 (Accuracy): 0.7738
+     - 平衡准确率 (Balanced Accuracy): 0.7105
+     - AUC (ROC): 0.7920
+     - PR-AUC: 0.7302
+     - F1-Score: 0.7639
+     - MCC (Matthews): 0.4600
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.7073
+     - Recall/Sensitivity (敏感度, TPR): 0.5273
+     - Specificity (特异性, TNR): 0.8938
+     - NPV (阴性预测值): 0.7953
+     - Precision (加权平均): 0.7665
+     - Recall (加权平均): 0.7738
+     - 🔗 对齐召回率 (Recall@1): 0.0260
+  ✅ 保存最佳模型 (AUC: 0.7920)
+
+================================================================================
+📊 Epoch 5/20 - 训练阶段
+================================================================================
+当前Beta: 1.000 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 5 训练统计:
+     - 平均损失: 0.037938
+     - 准确率 (Accuracy): 0.7003
+     - 平衡准确率 (Balanced Accuracy): 0.7005
+     - F1-Score: 0.7003
+     - MCC (Matthews): 0.4011
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.7124
+     - Recall/Sensitivity (敏感度): 0.6877
+     - Specificity (特异性): 0.7134
+     - NPV (阴性预测值): 0.6887
+     - Precision (加权平均): 0.7007
+     - Recall (加权平均): 0.7003
+     - 分类损失: 0.037938
+     - 🔥 对齐损失 (Alignment): 4.108891
+     - ✅ 对齐召回率 (Recall@1): 0.0192
+
+  📊 Epoch 5/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([38, 10], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.0992, 0.8463]
+
+  📊 Epoch 5 验证统计:
+     - 平均损失: 0.031039
+     - 准确率 (Accuracy): 0.8274
+     - 平衡准确率 (Balanced Accuracy): 0.7457
+     - AUC (ROC): 0.8037
+     - PR-AUC: 0.7603
+     - F1-Score: 0.8106
+     - MCC (Matthews): 0.6021
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.9333
+     - Recall/Sensitivity (敏感度, TPR): 0.5091
+     - Specificity (特异性, TNR): 0.9823
+     - NPV (阴性预测值): 0.8043
+     - Precision (加权平均): 0.8466
+     - Recall (加权平均): 0.8274
+     - 🔗 对齐召回率 (Recall@1): 0.0104
+  ✅ 保存最佳模型 (AUC: 0.8037)
+
+================================================================================
+📊 Epoch 6/20 - 训练阶段
+================================================================================
+当前Beta: 0.940 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 6 训练统计:
+     - 平均损失: 0.034589
+     - 准确率 (Accuracy): 0.7548
+     - 平衡准确率 (Balanced Accuracy): 0.7539
+     - F1-Score: 0.7543
+     - MCC (Matthews): 0.5098
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.7676
+     - Recall/Sensitivity (敏感度): 0.7148
+     - Specificity (特异性): 0.7931
+     - NPV (阴性预测值): 0.7441
+     - Precision (加权平均): 0.7556
+     - Recall (加权平均): 0.7548
+     - 分类损失: 0.034589
+     - 🔥 对齐损失 (Alignment): 4.104020
+     - ✅ 对齐召回率 (Recall@1): 0.0240
+
+  📊 Epoch 6/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([29, 19], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.1662, 0.8468]
+
+  📊 Epoch 6 验证统计:
+     - 平均损失: 0.032546
+     - 准确率 (Accuracy): 0.7143
+     - 平衡准确率 (Balanced Accuracy): 0.6710
+     - AUC (ROC): 0.7810
+     - PR-AUC: 0.7229
+     - F1-Score: 0.7129
+     - MCC (Matthews): 0.3453
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.5660
+     - Recall/Sensitivity (敏感度, TPR): 0.5455
+     - Specificity (特异性, TNR): 0.7965
+     - NPV (阴性预测值): 0.7826
+     - Precision (加权平均): 0.7117
+     - Recall (加权平均): 0.7143
+     - 🔗 对齐召回率 (Recall@1): 0.0365
+
+================================================================================
+📊 Epoch 7/20 - 训练阶段
+================================================================================
+当前Beta: 0.880 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 7 训练统计:
+     - 平均损失: 0.033127
+     - 准确率 (Accuracy): 0.7500
+     - 平衡准确率 (Balanced Accuracy): 0.7500
+     - F1-Score: 0.7500
+     - MCC (Matthews): 0.5000
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.7500
+     - Recall/Sensitivity (敏感度): 0.7500
+     - Specificity (特异性): 0.7500
+     - NPV (阴性预测值): 0.7500
+     - Precision (加权平均): 0.7500
+     - Recall (加权平均): 0.7500
+     - 分类损失: 0.033127
+     - 🔥 对齐损失 (Alignment): 4.084862
+     - ✅ 对齐召回率 (Recall@1): 0.0272
+
+  📊 Epoch 7/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([34, 14], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.1684, 0.8834]
+
+  📊 Epoch 7 验证统计:
+     - 平均损失: 0.033946
+     - 准确率 (Accuracy): 0.7679
+     - 平衡准确率 (Balanced Accuracy): 0.6874
+     - AUC (ROC): 0.7514
+     - PR-AUC: 0.6910
+     - F1-Score: 0.7503
+     - MCC (Matthews): 0.4379
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.7353
+     - Recall/Sensitivity (敏感度, TPR): 0.4545
+     - Specificity (特异性, TNR): 0.9204
+     - NPV (阴性预测值): 0.7761
+     - Precision (加权平均): 0.7628
+     - Recall (加权平均): 0.7679
+     - 🔗 对齐召回率 (Recall@1): 0.0104
+
+================================================================================
+📊 Epoch 8/20 - 训练阶段
+================================================================================
+当前Beta: 0.820 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 8 训练统计:
+     - 平均损失: 0.028652
+     - 准确率 (Accuracy): 0.7804
+     - 平衡准确率 (Balanced Accuracy): 0.7808
+     - F1-Score: 0.7800
+     - MCC (Matthews): 0.5639
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.8127
+     - Recall/Sensitivity (敏感度): 0.7325
+     - Specificity (特异性): 0.8290
+     - NPV (阴性预测值): 0.7537
+     - Precision (加权平均): 0.7834
+     - Recall (加权平均): 0.7804
+     - 分类损失: 0.028652
+     - 🔥 对齐损失 (Alignment): 4.096389
+     - ✅ 对齐召回率 (Recall@1): 0.0288
+
+  📊 Epoch 8/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([26, 22], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.1542, 0.8939]
+
+  📊 Epoch 8 验证统计:
+     - 平均损失: 0.032045
+     - 准确率 (Accuracy): 0.7619
+     - 平衡准确率 (Balanced Accuracy): 0.7530
+     - AUC (ROC): 0.8098
+     - PR-AUC: 0.7517
+     - F1-Score: 0.7663
+     - MCC (Matthews): 0.4876
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.6154
+     - Recall/Sensitivity (敏感度, TPR): 0.7273
+     - Specificity (特异性, TNR): 0.7788
+     - NPV (阴性预测值): 0.8544
+     - Precision (加权平均): 0.7761
+     - Recall (加权平均): 0.7619
+     - 🔗 对齐召回率 (Recall@1): 0.0365
+  ✅ 保存最佳模型 (AUC: 0.8098)
+
+================================================================================
+📊 Epoch 9/20 - 训练阶段
+================================================================================
+当前Beta: 0.760 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 9 训练统计:
+     - 平均损失: 0.029974
+     - 准确率 (Accuracy): 0.7580
+     - 平衡准确率 (Balanced Accuracy): 0.7580
+     - F1-Score: 0.7580
+     - MCC (Matthews): 0.5159
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.7532
+     - Recall/Sensitivity (敏感度): 0.7557
+     - Specificity (特异性): 0.7603
+     - NPV (阴性预测值): 0.7627
+     - Precision (加权平均): 0.7580
+     - Recall (加权平均): 0.7580
+     - 分类损失: 0.029974
+     - 🔥 对齐损失 (Alignment): 4.128944
+     - ✅ 对齐召回率 (Recall@1): 0.0288
+
+  📊 Epoch 9/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([35, 13], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.1539, 0.9358]
+
+  📊 Epoch 9 验证统计:
+     - 平均损失: 0.032095
+     - 准确率 (Accuracy): 0.7738
+     - 平衡准确率 (Balanced Accuracy): 0.7059
+     - AUC (ROC): 0.7807
+     - PR-AUC: 0.7293
+     - F1-Score: 0.7620
+     - MCC (Matthews): 0.4576
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.7179
+     - Recall/Sensitivity (敏感度, TPR): 0.5091
+     - Specificity (特异性, TNR): 0.9027
+     - NPV (阴性预测值): 0.7907
+     - Precision (加权平均): 0.7669
+     - Recall (加权平均): 0.7738
+     - 🔗 对齐召回率 (Recall@1): 0.0469
+
+================================================================================
+📊 Epoch 10/20 - 训练阶段
+================================================================================
+当前Beta: 0.700 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 10 训练统计:
+     - 平均损失: 0.030875
+     - 准确率 (Accuracy): 0.7548
+     - 平衡准确率 (Balanced Accuracy): 0.7549
+     - F1-Score: 0.7547
+     - MCC (Matthews): 0.5101
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.7667
+     - Recall/Sensitivity (敏感度): 0.7348
+     - Specificity (特异性): 0.7749
+     - NPV (阴性预测值): 0.7438
+     - Precision (加权平均): 0.7553
+     - Recall (加权平均): 0.7548
+     - 分类损失: 0.030875
+     - 🔥 对齐损失 (Alignment): 4.099146
+     - ✅ 对齐召回率 (Recall@1): 0.0160
+
+  📊 Epoch 10/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([25, 23], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.1166, 0.8894]
+
+  📊 Epoch 10 验证统计:
+     - 平均损失: 0.032223
+     - 准确率 (Accuracy): 0.6905
+     - 平衡准确率 (Balanced Accuracy): 0.6579
+     - AUC (ROC): 0.7826
+     - PR-AUC: 0.7019
+     - F1-Score: 0.6931
+     - MCC (Matthews): 0.3105
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.5254
+     - Recall/Sensitivity (敏感度, TPR): 0.5636
+     - Specificity (特异性, TNR): 0.7522
+     - NPV (阴性预测值): 0.7798
+     - Precision (加权平均): 0.6965
+     - Recall (加权平均): 0.6905
+     - 🔗 对齐召回率 (Recall@1): 0.0417
+
+================================================================================
+📊 Epoch 11/20 - 训练阶段
+================================================================================
+当前Beta: 0.640 (Warm-up策略)
+总batch数: 13
+
+  📊 Epoch 11 训练统计:
+     - 平均损失: 0.027004
+     - 准确率 (Accuracy): 0.7772
+     - 平衡准确率 (Balanced Accuracy): 0.7766
+     - F1-Score: 0.7770
+     - MCC (Matthews): 0.5547
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.7672
+     - Recall/Sensitivity (敏感度): 0.8082
+     - Specificity (特异性): 0.7451
+     - NPV (阴性预测值): 0.7889
+     - Precision (加权平均): 0.7778
+     - Recall (加权平均): 0.7772
+     - 分类损失: 0.027004
+     - 🔥 对齐损失 (Alignment): 4.112793
+     - ✅ 对齐召回率 (Recall@1): 0.0192
+
+  📊 Epoch 11/20 - 验证阶段
+     当前Beta: 0.100
+     第一个batch预测分布: tensor([36, 12], device='cuda:0')
+     第一个batch标签分布: tensor([30, 18], device='cuda:0')
+     第一个batch预测概率范围: [0.1170, 0.8974]
+
+  📊 Epoch 11 验证统计:
+     - 平均损失: 0.032608
+     - 准确率 (Accuracy): 0.7500
+     - 平衡准确率 (Balanced Accuracy): 0.6788
+     - AUC (ROC): 0.7997
+     - PR-AUC: 0.7291
+     - F1-Score: 0.7370
+     - MCC (Matthews): 0.3975
+
+     📋 二分类详细指标:
+     - Precision (阳性, PPV): 0.6667
+     - Recall/Sensitivity (敏感度, TPR): 0.4727
+     - Specificity (特异性, TNR): 0.8850
+     - NPV (阴性预测值): 0.7752
+     - Precision (加权平均): 0.7397
+     - Recall (加权平均): 0.7500
+     - 🔗 对齐召回率 (Recall@1): 0.0260
+
+================================================================================
+📊 Epoch 12/20 - 训练阶段
+================================================================================
+当前Beta: 0.580 (Warm-up策略)
+总batch数: 13
