@@ -61,11 +61,35 @@ class BioCOT_v3_2_Config:
     # 决策阈值
     classification_threshold: float = 0.580  # 最优阈值
     
+    # 🔥 5.0优势：分层多尺度特征提取
+    use_hierarchical: bool = True
+    extract_layers: tuple = (2, 5, 8, 11)  # 提取的ViT层索引
+    
+    # 🔥 5.0优势：激进正则化策略
+    dropout_rate: float = 0.4  # 从0.2提升到0.4
+    drop_path_rate: float = 0.2  # ViT的DropPath率
+    
+    # 🔥 5.0优势：噪声感知融合
+    use_noise_aware: bool = True
+    mhc_latent_dim: int = 256
+    sinkhorn_iters: int = 3
+    mhc_epsilon: float = 0.05
+    
+    # 🔥 5.0优势：动态临床查询演化
+    use_clinical_evolver: bool = True
+    
+    # 🔥 5.0优势：Text Adapter（VLM集成增强）
+    use_text_adapter: bool = True
+    
+    # 🔥 5.0优势：正交损失权重
+    lambda_ortho: float = 0.5  # 正交损失权重
+    lambda_noise: float = 0.1  # 噪声正则化损失权重
+    
     # 训练配置
     batch_size: int = 48
     num_epochs: int = 100
     learning_rate: float = 0.0002
-    weight_decay: float = 1e-5
+    weight_decay: float = 0.05  # 🔥 5.0优势：强L2正则（从1e-5提升到0.05）
     num_workers: int = 4
     pin_memory: bool = True
     

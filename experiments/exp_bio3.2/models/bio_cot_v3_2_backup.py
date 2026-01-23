@@ -1,17 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Bio-COT 3.2 Enhanced (整合5.0所有优势)
-融合3.1、4.0和5.0的优势：
+Bio-COT 3.2 (Enhanced Logic Loop Version)
+融合3.1和4.0的优势：
 1. 保留3.1的所有优点（显式对齐、自适应模态融合、增强Visual Notes）
 2. 引入4.0的优势（Frozen VLM + Trainable Adapter、动态知识生成）
-3. 🔥 整合5.0的优势：
-   - 分层多尺度特征提取（HierarchicalViT）
-   - 噪声感知流形超连接（NA-mHC）
-   - 动态临床查询演化（ClinicalEvolver）
-   - 激进正则化策略（Dropout 0.4, DropPath 0.2）
-   - 正交损失（解耦方式）
-   - Text Adapter（VLM集成）
 """
 
 import sys
@@ -33,11 +26,6 @@ from src.models.bida.losses import SinkhornDistance, CounterfactualConsistencyLo
 
 # 导入增强后的 Visual Notes（3.1的优势）
 from .visual_notes import VisualNotesModule
-
-# 🔥 导入5.0的模块（5.0的优势）
-from .backbones import HierarchicalViT
-from .mhc_fusion import NoiseAwareMHC
-from .clinical_evolver import ClinicalEvolver
 
 # 🔥 导入4.0的VLMAugmentedRetriever（4.0的优势）
 try:
@@ -78,11 +66,8 @@ class AdaptiveModalityGating(nn.Module):
 
 class BioCOT_v3_2(nn.Module):
     """
-    Bio-COT 3.2 Enhanced Version (整合5.0所有优势)
-    融合3.1、4.0和5.0的优势：
-    - 3.1: 显式对齐、自适应模态融合、增强Visual Notes
-    - 4.0: Frozen VLM + Trainable Adapter、动态知识生成
-    - 5.0: 分层多尺度特征、噪声感知融合、动态临床演化、激进正则化、正交损失
+    Bio-COT 3.2 Enhanced Version
+    融合3.1和4.0的优势：保留3.1的所有优点 + 引入4.0的计算效率和知识复杂度
     """
     def __init__(
         self,
@@ -90,26 +75,15 @@ class BioCOT_v3_2(nn.Module):
         num_classes: int = 2,
         num_centers: int = 5,
         input_dim: int = 768,
-        vlm_json_path: str = None,
+        vlm_json_path: str = None,  # ⚠️ 新增：VLM缓存路径（必需，从4.0引入）
         text_model_name: str = "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext",
         use_visual_notes: bool = True,
         use_ot: bool = True,
         use_dual: bool = True,
         use_cross_attn: bool = True,
-        use_adaptive_gating: bool = True,
+        use_adaptive_gating: bool = True,  # ⚠️ 新增：控制自适应模态门控
         warmup_epochs: int = 10,
-        hidden_dim: int = 768,
-        # 🔥 5.0新增参数
-        use_hierarchical: bool = True,  # 是否使用分层多尺度特征
-        extract_layers: Tuple[int, ...] = (2, 5, 8, 11),  # 提取的层索引
-        drop_path_rate: float = 0.2,  # ViT的DropPath率
-        dropout_rate: float = 0.4,  # 激进正则化
-        use_noise_aware: bool = True,  # 是否使用噪声感知融合
-        use_clinical_evolver: bool = True,  # 是否使用临床查询演化
-        mhc_latent_dim: int = 256,  # NA-mHC的潜在维度
-        sinkhorn_iters: int = 3,  # Sinkhorn迭代次数
-        mhc_epsilon: float = 0.05,  # Sinkhorn epsilon
-        use_text_adapter: bool = True,  # 是否使用Text Adapter（5.0的VLM集成）
+        hidden_dim: int = 768
     ):
         super().__init__()
         self.embed_dim = embed_dim
@@ -118,28 +92,15 @@ class BioCOT_v3_2(nn.Module):
         self.use_ot = use_ot
         self.use_dual = use_dual
         self.use_adaptive_gating = use_adaptive_gating
-        self.use_hierarchical = use_hierarchical
-        self.use_noise_aware = use_noise_aware
-        self.use_clinical_evolver = use_clinical_evolver
         self.current_epoch = 0
         
         # ============================================================
-        # 🔥 5.0优势1：分层多尺度特征提取（HierarchicalViT）
-        # ============================================================
-        if use_hierarchical:
-            self.visual_encoder = HierarchicalViT(
-                model_name="vit_base_patch16_224",
-                pretrained=True,
-                out_indices=extract_layers,
-                drop_path_rate=drop_path_rate
-            )
-            self.num_stages = len(extract_layers)
-        else:
-            self.visual_encoder = None
-            self.num_stages = 1
-        
-        # ============================================================
         # 🔥 关键改动1：替换为VLMAugmentedRetriever（4.0的优势）
+        # ============================================================
+        # 从3.1的"预计算嵌入 + 可训练投影"改为"Frozen VLM + Trainable Adapter"
+        # 优势：
+        # 1. 计算效率：冻结Text Encoder，仅训练Adapter
+        # 2. 知识复杂度：动态生成知识，基于VLM描述
         # ============================================================
         if vlm_json_path is None:
             raise ValueError("vlm_json_path 是必需的！请提供VLM缓存JSON文件路径。")
@@ -149,57 +110,7 @@ class BioCOT_v3_2(nn.Module):
             visual_dim=embed_dim,
             text_model_name=text_model_name
         )
-        
-        # 🔥 5.0优势6：Text Adapter（VLM集成增强）
-        if use_text_adapter:
-            self.text_adapter = nn.Sequential(
-                nn.Linear(embed_dim, embed_dim),
-                nn.Dropout(dropout_rate * 0.5)
-            )
-        else:
-            self.text_adapter = None
-        
-        # ============================================================
-        # 🔥 5.0优势2：噪声感知流形超连接（NA-mHC）
-        # ============================================================
-        if use_noise_aware and use_hierarchical:
-            self.mhc_layers = nn.ModuleList([
-                NoiseAwareMHC(
-                    img_dim=embed_dim,
-                    clinical_dim=hidden_dim,
-                    num_centers=num_centers,
-                    latent_dim=mhc_latent_dim,
-                    sinkhorn_iters=sinkhorn_iters,
-                    epsilon=mhc_epsilon,
-                    dropout=dropout_rate
-                )
-                for _ in range(self.num_stages)
-            ])
-        else:
-            self.mhc_layers = None
-        
-        # ============================================================
-        # 🔥 5.0优势3：动态临床查询演化（ClinicalEvolver）
-        # ============================================================
-        if use_clinical_evolver and use_hierarchical:
-            self.evolvers = nn.ModuleList([
-                ClinicalEvolver(
-                    visual_dim=embed_dim,
-                    clinical_dim=hidden_dim,
-                    dropout=dropout_rate * 0.5
-                )
-                for _ in range(max(self.num_stages - 1, 0))
-            ])
-        else:
-            self.evolvers = None
-        
-        # 临床状态初始化
-        self.clinical_init = nn.Sequential(
-            nn.Linear(7, hidden_dim),  # 假设临床特征维度为7
-            nn.LayerNorm(hidden_dim),
-            nn.Dropout(dropout_rate),
-            nn.GELU(),
-        )
+        # 注意：不再需要note_projector，因为VLMAugmentedRetriever已经包含了Adapter
 
         # ============================================================
         # [PROFESSIONAL FIX] 深度对齐投影头 + 共享语义空间（3.1的优势）
@@ -264,13 +175,12 @@ class BioCOT_v3_2(nn.Module):
         # 5. 跨模态融合 (Final Decision)（3.1的优势）
         self.final_fusion = nn.MultiheadAttention(embed_dim, num_heads=4, batch_first=True) if use_cross_attn else None
         
-        # 6. 分类器（🔥 5.0优势4：激进正则化）
+        # 6. 分类器
         self.classifier = nn.Sequential(
-            nn.Dropout(dropout_rate),  # 🔥 分类前必须加Dropout
             nn.Linear(embed_dim, embed_dim // 2),
             nn.LayerNorm(embed_dim // 2),
             nn.GELU(),
-            nn.Dropout(dropout_rate * 0.5),
+            nn.Dropout(0.2),
             nn.Linear(embed_dim // 2, num_classes)
         )
         
@@ -315,25 +225,23 @@ class BioCOT_v3_2(nn.Module):
 
     def forward(
         self,
-        f_oct: torch.Tensor,     # [B, N, D] 或 [B, C, H, W]（如果使用分层）
-        f_colpo: torch.Tensor,   # [B, N, D] 或 [B, C, H, W]（如果使用分层）
-        image_names: List[str],  # 图像文件名列表（用于VLM检索）
-        clinical_info: Optional[List[str]] = None,  # 临床信息（可选）
-        center_labels: Optional[torch.Tensor] = None,  # 中心标签
-        clinical_features: Optional[torch.Tensor] = None,  # 🔥 5.0新增：临床特征向量 [B, 7]
+        f_oct: torch.Tensor,     # [B, N, D]
+        f_colpo: torch.Tensor,   # [B, N, D]
+        image_names: List[str],  # ⚠️ 新增：图像文件名列表（用于VLM检索）
+        clinical_info: Optional[List[str]] = None,  # ⚠️ 新增：临床信息（可选）
+        center_labels: Optional[torch.Tensor] = None,
         return_loss_components: bool = False,
         current_beta: Optional[float] = None
     ) -> Dict[str, torch.Tensor]:
         """
-        Forward pass with Logic Loop (Enhanced with 5.0 advantages)
+        Forward pass with Logic Loop (Enhanced with VLM)
         
         Args:
-            f_oct: OCT图像特征 [B, N, D] 或原始图像 [B, C, H, W]
-            f_colpo: Colposcopy图像特征 [B, N, D] 或原始图像 [B, C, H, W]
-            image_names: 图像文件名列表（必需）
+            f_oct: OCT图像特征 [B, N, D]
+            f_colpo: Colposcopy图像特征 [B, N, D]
+            image_names: 图像文件名列表（必需，用于VLM检索）
             clinical_info: 临床信息列表（可选）
-            center_labels: 中心标签（用于对抗损失和噪声感知）
-            clinical_features: 临床特征向量 [B, 7]（5.0新增，用于ClinicalEvolver）
+            center_labels: 中心标签（用于对抗损失）
             return_loss_components: 是否返回损失组件
             current_beta: 当前beta值（用于Visual Notes）
         """
@@ -345,85 +253,38 @@ class BioCOT_v3_2(nn.Module):
         if image_names is None:
             raise ValueError("image_names不能为None！")
         
+        # 确保image_names是列表
         if not isinstance(image_names, list):
             image_names = [image_names] if isinstance(image_names, str) else list(image_names)
         
         if len(image_names) != B:
-            raise ValueError(f"image_names长度({len(image_names)})与batch大小({B})不匹配！")
-        
-        # 🔥 5.0优势：分层多尺度特征提取
-        if self.use_hierarchical and self.visual_encoder is not None and len(f_oct.shape) == 4:
-            # 使用原始图像，通过HierarchicalViT提取分层特征
-            # 合并OCT和Colposcopy（简单平均或拼接）
-            # 这里假设f_oct是主要模态，f_colpo作为辅助
-            images = f_oct  # [B, C, H, W]
-            vis_feats_list = self.visual_encoder(images)  # List of [B, N, D]
-            
-            # 初始化临床状态
-            if clinical_features is not None:
-                clin_state = self.clinical_init(clinical_features)  # [B, hidden_dim]
-            else:
-                # 如果没有提供clinical_features，使用零向量
-                clin_state = torch.zeros(B, self.embed_dim, device=device)
-            
-            final_feat = None
-            all_noise_probs = []
-            
-            # 🔥 5.0优势：分层循环推理（NA-mHC + ClinicalEvolver）
-            for i in range(self.num_stages):
-                feat = vis_feats_list[i]  # [B, N, D]
-                
-                # (1) NA-mHC融合（噪声感知）
-                if self.use_noise_aware and self.mhc_layers is not None:
-                    feat_fused, noise_prob = self.mhc_layers[i](feat, clin_state, center_labels)
-                    all_noise_probs.append(noise_prob)
-                else:
-                    feat_fused = feat
-                    noise_prob = None
-                
-                # 记录最后一层特征
-                if i == self.num_stages - 1:
-                    final_feat = feat_fused
-                
-                # (2) Clinical Query Evolution（除非是最后一层）
-                if i < self.num_stages - 1 and self.use_clinical_evolver and self.evolvers is not None:
-                    clin_state = self.evolvers[i](feat_fused, clin_state)
-            
-            assert final_feat is not None
-            f_oct_processed = final_feat  # [B, N, D]
-            f_colpo_processed = final_feat  # 简化：使用相同特征（实际可以分别处理）
-            
-        else:
-            # 向后兼容：使用已提取的特征
-            f_oct_processed = f_oct
-            f_colpo_processed = f_colpo
-            all_noise_probs = []
+            raise ValueError(
+                f"image_names长度({len(image_names)})与batch大小({B})不匹配！\n"
+                f"image_names类型: {type(image_names)}, 前3个值: {image_names[:3] if len(image_names) >= 3 else image_names}"
+            )
         
         # --- Step 1: 语义锚点生成（使用VLMAugmentedRetriever）---
+        # 🔥 关键改动：从预计算嵌入改为动态VLM检索
         z_sem = self.knowledge_retriever(
             image_names=image_names,
             clinical_info=clinical_info,
             device=str(device)
         )  # [B, embed_dim]
-        
-        # 🔥 5.0优势6：Text Adapter
-        if self.text_adapter is not None:
-            z_sem = self.text_adapter(z_sem)
-        
         output['z_sem'] = z_sem
         
         # --- Step 2: 视觉笔记引导的特征提取（3.1的优势）---
-        f_oct_pooled, attn_oct = self.extract_features(f_oct_processed, z_sem, current_beta)
-        f_colpo_pooled, attn_colpo = self.extract_features(f_colpo_processed, z_sem, current_beta)
+        f_oct_pooled, attn_oct = self.extract_features(f_oct, z_sem, current_beta)
+        f_colpo_pooled, attn_colpo = self.extract_features(f_colpo, z_sem, current_beta)
         
         if attn_oct is not None:
             output['attn_maps'] = [attn_oct, attn_colpo]
             
-        # --- Step 3: 自适应模态融合（3.1的优势）---
+        # --- Step 3: 自适应模态融合 [INNOVATION]（3.1的优势）---
         if self.adaptive_fusion is not None:
             f_fused, (w_oct, w_colpo) = self.adaptive_fusion(f_oct_pooled, f_colpo_pooled)
             output['fusion_weights'] = {'oct': w_oct, 'colpo': w_colpo}
         else:
+            # 禁用时使用简单平均融合
             f_fused = (f_oct_pooled + f_colpo_pooled) / 2.0
             output['fusion_weights'] = {'oct': torch.ones(B, 1, device=device) * 0.5, 
                                         'colpo': torch.ones(B, 1, device=device) * 0.5}
@@ -437,7 +298,7 @@ class BioCOT_v3_2(nn.Module):
         output['z_causal'] = z_causal
         output['z_noise'] = z_noise
         
-        # --- Step 5: 最终诊断（语义-因果特征融合）---
+        # --- Step 5: 最终诊断 (语义-因果特征融合)（3.1的优势）---
         if self.final_fusion:
             z_causal_expanded = z_causal.unsqueeze(1)
             z_sem_expanded = z_sem.unsqueeze(1)
@@ -450,10 +311,6 @@ class BioCOT_v3_2(nn.Module):
         output['pred'] = pred
         output['logits'] = pred
         
-        # 🔥 5.0优势：返回噪声概率图（用于Noise Regularization Loss）
-        if all_noise_probs:
-            output['noise_probs'] = all_noise_probs
-        
         # --- Step 6: Loss Calculation (Logic Loop)（3.1的优势：显式对齐）---
         if return_loss_components:
             loss_dict = {}
@@ -461,18 +318,6 @@ class BioCOT_v3_2(nn.Module):
             # 6.1 OT Loss
             if self.use_ot:
                 loss_dict['L_ot'] = self.ot_loss(z_causal, z_sem)
-            
-            # 🔥 5.0优势5：正交损失（解耦方式）
-            if self.use_dual and z_noise is not None:
-                zc = F.normalize(z_causal, dim=1)
-                zn = F.normalize(z_noise, dim=1)
-                loss_dict['L_ortho'] = torch.mean(torch.abs(torch.sum(zc * zn, dim=1)))
-            
-            # 🔥 5.0优势：Noise Regularization Loss
-            if 'noise_probs' in output and output['noise_probs']:
-                # 鼓励噪声概率图稀疏（大部分patch应该是干净的）
-                noise_reg_loss = sum([torch.mean(noise_prob) for noise_prob in output['noise_probs']])
-                loss_dict['L_noise'] = noise_reg_loss / len(output['noise_probs'])
             
             # ============================================================
             # [PROFESSIONAL FIX] 深度对齐模块（3.1的优势：显式对齐）
@@ -556,7 +401,7 @@ class BioCOT_v3_2(nn.Module):
         return output
 
 def create_bio_cot_v3_2(config):
-    """Factory function to create BioCOT_v3_2 model (整合5.0优势)"""
+    """Factory function to create BioCOT_v3_2 model"""
     return BioCOT_v3_2(
         embed_dim=config.embed_dim,
         num_classes=config.num_classes,
@@ -570,17 +415,6 @@ def create_bio_cot_v3_2(config):
         use_cross_attn=config.use_cross_attn,
         use_adaptive_gating=getattr(config, 'use_adaptive_gating', True),
         warmup_epochs=config.warmup_epochs,
-        hidden_dim=getattr(config, 'hidden_dim', 768),
-        # 🔥 5.0新增参数
-        use_hierarchical=getattr(config, 'use_hierarchical', True),
-        extract_layers=getattr(config, 'extract_layers', (2, 5, 8, 11)),
-        drop_path_rate=getattr(config, 'drop_path_rate', 0.2),
-        dropout_rate=getattr(config, 'dropout_rate', 0.4),
-        use_noise_aware=getattr(config, 'use_noise_aware', True),
-        use_clinical_evolver=getattr(config, 'use_clinical_evolver', True),
-        mhc_latent_dim=getattr(config, 'mhc_latent_dim', 256),
-        sinkhorn_iters=getattr(config, 'sinkhorn_iters', 3),
-        mhc_epsilon=getattr(config, 'mhc_epsilon', 0.05),
-        use_text_adapter=getattr(config, 'use_text_adapter', True),
+        hidden_dim=getattr(config, 'hidden_dim', 768)
     )
 
