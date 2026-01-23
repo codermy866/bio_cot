@@ -304,13 +304,35 @@ def train_epoch(
         else:
             colpo_features_patch = extract_patch_features_with_vit(colposcopy_images, device)
         
-        # 前向传播（3.2改动：使用image_names和clinical_info）
+        # 🔥 5.0优势：提取clinical_features用于ClinicalEvolver
+        clinical_features = None
+        if 'clinical_features' in batch and batch['clinical_features'] is not None:
+            clinical_features = batch['clinical_features'].to(device, non_blocking=True)
+        elif 'clinical_data' in batch:
+            # 从clinical_data构造特征向量
+            clinical_data = batch['clinical_data']
+            if isinstance(clinical_data, dict):
+                # 假设包含hpv, tct, age等
+                hpv = clinical_data.get('hpv', torch.zeros(B_oct, device=device))
+                age = clinical_data.get('age', torch.zeros(B_oct, device=device))
+                # TCT编码（简化处理）
+                tct = clinical_data.get('tct', torch.zeros(B_oct, device=device))
+                if not isinstance(hpv, torch.Tensor):
+                    hpv = torch.tensor(hpv, device=device) if isinstance(hpv, (list, np.ndarray)) else torch.zeros(B_oct, device=device)
+                if not isinstance(age, torch.Tensor):
+                    age = torch.tensor(age, device=device) if isinstance(age, (list, np.ndarray)) else torch.zeros(B_oct, device=device)
+                # 构造7维特征向量 [hpv, age, tct_onehot(5维)]
+                tct_onehot = F.one_hot(tct.long() if isinstance(tct, torch.Tensor) else torch.zeros(B_oct, dtype=torch.long, device=device), num_classes=5).float()
+                clinical_features = torch.cat([hpv.unsqueeze(1), age.unsqueeze(1), tct_onehot], dim=1)  # [B, 7]
+        
+        # 前向传播（整合5.0优势）
         outputs = model(
             f_oct=oct_features_patch,
             f_colpo=colpo_features_patch,
-            image_names=image_names,  # 🔥 3.2改动
-            clinical_info=clinical_info,  # 🔥 3.2改动
+            image_names=image_names,
+            clinical_info=clinical_info,
             center_labels=center_labels,
+            clinical_features=clinical_features,  # 🔥 5.0新增
             return_loss_components=True,
             current_beta=current_beta
         )
@@ -360,6 +382,18 @@ def train_epoch(
                     log_print(f"     注意力均值: OCT={attn_mean_oct:.4f}, Colpo={attn_mean_colpo:.4f}")
         else:
             sparse_losses.append(0.0)
+        
+        # 🔥 5.0优势：正交损失（解耦方式）
+        if 'L_ortho' in outputs.get('loss_components', {}):
+            L_ortho = outputs['loss_components']['L_ortho']
+            lambda_ortho = getattr(config, 'lambda_ortho', 0.5)
+            total_loss_batch = total_loss_batch + lambda_ortho * L_ortho
+        
+        # 🔥 5.0优势：噪声正则化损失
+        if 'L_noise' in outputs.get('loss_components', {}):
+            L_noise = outputs['loss_components']['L_noise']
+            lambda_noise = getattr(config, 'lambda_noise', 0.1)
+            total_loss_batch = total_loss_batch + lambda_noise * L_noise
         
         # 添加一致性损失
         if config.use_dual and 'L_consist' in outputs.get('loss_components', {}):
