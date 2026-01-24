@@ -20,7 +20,8 @@ class BioCOT_v3_2_Config:
     data_root: str = '/data2/hmy/VLM_Caus_Rm_Mics/data/5centers_multi_leave_centers_out'
     
     # ⚠️ VLM缓存路径（必需，从4.0引入）
-    vlm_json_path: str = '../exp_bio4.0/data/vlm_profiles_v1.json'
+    # 使用exp_bio3.2本地的VLM缓存文件
+    vlm_json_path: str = 'data/vlm_profiles_v1.json'  # 相对路径，位于exp_bio3.2/data/下
     
     # 模型配置
     embed_dim: int = 768
@@ -86,16 +87,19 @@ class BioCOT_v3_2_Config:
     lambda_noise: float = 0.1  # 噪声正则化损失权重
     
     # 训练配置
-    batch_size: int = 48
-    num_epochs: int = 100
+    batch_size: int = 4  # 🔧 降低batch size以避免显存溢出
+    num_epochs: int = 50  # 🔧 调整为50个epoch以更快看到结果
     learning_rate: float = 0.0002
     weight_decay: float = 0.05  # 🔥 5.0优势：强L2正则（从1e-5提升到0.05）
     num_workers: int = 4
     pin_memory: bool = True
     
     # 图像配置
-    oct_frames: int = 20
+    oct_frames: int = 20  # 🔧 强制使用20帧（不使用数据集的自动平衡策略）
     colposcopy_images: int = 3
+    
+    # 🔧 显存优化配置
+    vit_batch_size: int = 16  # ViT特征提取时的子批次大小
     
     # 输出目录
     output_dir: str = 'results'
@@ -111,9 +115,11 @@ class BioCOT_v3_2_Config:
         vlm_path = Path(self.vlm_json_path)
         if not vlm_path.is_absolute():
             # 尝试相对路径
+            project_root = Path(__file__).resolve().parents[3]
             possible_paths = [
                 Path(__file__).parent / vlm_path,
                 Path(__file__).parent.parent / vlm_path,
+                Path(__file__).parent / 'data' / 'vlm_profiles_v1.json',  # 本地data目录
                 vlm_path
             ]
             for p in possible_paths:
@@ -123,4 +129,5 @@ class BioCOT_v3_2_Config:
                     return
             
             print(f"⚠️ 警告：VLM缓存文件未找到，请检查路径: {self.vlm_json_path}")
+            print(f"   尝试的路径: {possible_paths}")
 
