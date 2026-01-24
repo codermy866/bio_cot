@@ -984,8 +984,28 @@ def main():
     
     # 创建模型
     log_print("\n📊 正在创建Bio-COT 3.2模型...")
-    model = create_bio_cot_v3_2(config)
+    try:
+        model = create_bio_cot_v3_2(config)
+    except Exception as e:
+        log_print(f"   ❌ 模型创建失败: {e}")
+        import traceback
+        log_print(traceback.format_exc())
+        raise
+    
+    # 🔥 紧急修复：确保learnable_knowledge_base存在（仿照exp_bio3.0_improved方案）
+    if not hasattr(model, 'learnable_knowledge_base'):
+        import torch.nn as nn
+        model.learnable_knowledge_base = nn.Parameter(torch.randn(1, config.embed_dim) * 0.02)
+        log_print(f"   ⚠️ 检测到learnable_knowledge_base缺失，已手动创建")
+    
     model = model.to(device)
+    
+    # 🔥 调试：检查模型属性
+    log_print(f"   模型 use_vlm_retriever: {getattr(model, 'use_vlm_retriever', 'N/A')}")
+    log_print(f"   模型 has learnable_knowledge_base: {hasattr(model, 'learnable_knowledge_base')}")
+    log_print(f"   模型 has note_projector: {hasattr(model, 'note_projector')}")
+    if hasattr(model, 'learnable_knowledge_base'):
+        log_print(f"   learnable_knowledge_base 形状: {model.learnable_knowledge_base.shape}")
     
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

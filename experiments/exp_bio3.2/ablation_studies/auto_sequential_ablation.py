@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]  # experiments/exp_bio3.2
 EXPERIMENT_ORDER = [
     # ========== 单模块消融实验（移除单个模块）==========
     "baseline",
+    "w/o_vlm_retriever",  # 🔥 新增：禁用VLM Retriever
     "w/o_visual_notes",
     "w/o_adaptive_gating",
     "w/o_alignment_loss",
@@ -37,6 +38,7 @@ EXPERIMENT_ORDER = [
 CONFIG_PATHS = {
     # 单模块消融实验
     "baseline": "ablation_studies/baseline/config.py",
+    "w/o_vlm_retriever": "ablation_studies/w/o_vlm_retriever/config.py",  # 🔥 新增
     "w/o_visual_notes": "ablation_studies/w/o_visual_notes/config.py",
     "w/o_adaptive_gating": "ablation_studies/w/o_adaptive_gating/config.py",
     "w/o_alignment_loss": "ablation_studies/w/o_alignment_loss/config.py",
@@ -150,7 +152,9 @@ def _is_exp_completed(exp: str) -> bool:
 def _any_other_ablation_training_running(current_exp: str) -> bool:
     """
     严格串行控制：如果当前要启动的实验之外，还有任何 ablation_studies 的 train_bio_cot_v3.2.py 在跑，则返回True。
-    这样不会打扰正在训练的进程，只是“等待合适的卡/合适的时机再启动下一步”。
+    这样不会打扰正在训练的进程，只是"等待合适的卡/合适的时机再启动下一步"。
+    
+    ⚠️ 重要：只检查 ablation_studies 目录下的训练，不会干扰正常训练（不在 ablation_studies 目录下的训练）。
     """
     current_cfg = CONFIG_PATHS.get(current_exp)
     if not current_cfg:
@@ -168,9 +172,10 @@ def _any_other_ablation_training_running(current_exp: str) -> bool:
         return False
 
     for line in out.splitlines():
+        # 🔥 关键：只检查 ablation_studies 目录下的训练，忽略正常训练
         if "ablation_studies" not in line:
-            continue
-        # 不是当前实验的训练进程，则认为“有其它实验在跑”
+            continue  # 跳过非消融实验的训练进程
+        # 不是当前实验的训练进程，则认为"有其它消融实验在跑"
         if (current_abs not in line) and (current_rel not in line):
             return True
     return False

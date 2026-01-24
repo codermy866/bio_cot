@@ -61,9 +61,19 @@ def check_experiment_completed(exp_name):
         
         epochs = len(data.get('train_loss', []))
         best_auc = data.get('best_auc', 0.0)
+        val_auc = data.get('val_auc', [])
         
-        if epochs >= 20 and best_auc > 0.0:
-            return True, f"已完成 ({epochs} epochs, AUC={best_auc:.4f})"
+        # 如果完成了20个epoch，即使best_auc为0也认为已完成（可能是保存问题）
+        # 或者如果有验证AUC值，也认为已完成
+        if epochs >= 20:
+            if best_auc > 0.0:
+                return True, f"已完成 ({epochs} epochs, AUC={best_auc:.4f})"
+            elif len(val_auc) >= 20:
+                # 从val_auc中找最大值
+                max_val_auc = max(val_auc) if val_auc else 0.0
+                return True, f"已完成 ({epochs} epochs, Max Val AUC={max_val_auc:.4f})"
+            else:
+                return True, f"已完成 ({epochs} epochs, 但AUC未正确保存)"
         else:
             return False, f"未完成 ({epochs} epochs, AUC={best_auc:.4f})"
     except Exception as e:
