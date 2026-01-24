@@ -922,8 +922,9 @@ def main():
     
     # 加载数据集
     log_print("\n📊 开始加载数据集...")
-    train_csv = Path(config.data_root) / 'internal_train' / 'labels.csv'
-    val_csv = Path(config.data_root) / 'internal_val' / 'labels.csv'
+    # 新数据集路径：train_labels.csv 和 val_labels.csv 在根目录
+    train_csv = Path(config.data_root) / 'train_labels.csv'
+    val_csv = Path(config.data_root) / 'val_labels.csv'
     
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -936,7 +937,8 @@ def main():
         transform=transform,
         oct_num_frames=config.oct_frames,
         max_col_images=config.colposcopy_images,
-        balance_negative_frames=True
+        balance_negative_frames=True,
+        data_root=str(config.data_root)
     )
     log_print(f"  ✅ 训练集加载完成: {len(train_dataset)} 个样本")
     
@@ -945,7 +947,8 @@ def main():
         transform=transform,
         oct_num_frames=config.oct_frames,
         max_col_images=config.colposcopy_images,
-        balance_negative_frames=True
+        balance_negative_frames=True,
+        data_root=str(config.data_root)
     )
     log_print(f"  ✅ 验证集加载完成: {len(val_dataset)} 个样本")
     
