@@ -17,7 +17,7 @@ class BioCOT_v3_2_Config:
     """Bio-COT 3.2 Enhanced 配置类"""
     
     # 数据路径
-    data_root: str = '/data2/hmy/5Center_datas/5centers_multi_positive_sites_multimodal'
+    data_root: str = '/data2/hmy/VLM_Caus_Rm_Mics/data/5centers_multi_leave_centers_out'
     
     # ⚠️ VLM缓存路径（必需，从4.0引入）
     vlm_json_path: str = '../exp_bio4.0/data/vlm_profiles_v1.json'
