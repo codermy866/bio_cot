@@ -141,13 +141,35 @@ class BioCOT_v3_2(nn.Module):
         # ============================================================
         # 🔥 关键改动1：替换为VLMAugmentedRetriever（4.0的优势）
         # ============================================================
-        if vlm_json_path is None:
-            raise ValueError("vlm_json_path 是必需的！请提供VLM缓存JSON文件路径。")
+        # 支持消融实验：可以禁用VLM Retriever
+        # 注意：use_vlm_retriever 将在 create_bio_cot_v3_2 中设置
+        # 这里先初始化为 True，后续会被覆盖
+        self.use_vlm_retriever = True  # 默认启用，可通过config覆盖
         
-        self.knowledge_retriever = VLMAugmentedRetriever(
-            vlm_json_path=vlm_json_path,
-            visual_dim=embed_dim,
-            text_model_name=text_model_name
+        # 创建知识检索器（如果vlm_json_path存在）
+        if vlm_json_path is not None:
+            self.knowledge_retriever = VLMAugmentedRetriever(
+                vlm_json_path=vlm_json_path,
+                visual_dim=embed_dim,
+                text_model_name=text_model_name
+            )
+        else:
+            self.knowledge_retriever = None
+        
+        # 创建语义投影器（仿照exp_bio3.0_improved的方案）
+        # 无论是否使用VLM Retriever，都创建note_projector
+        # 当禁用VLM Retriever时，使用可学习的静态嵌入作为输入
+        self.note_projector = nn.Sequential(
+            nn.Linear(embed_dim, embed_dim),
+            nn.LayerNorm(embed_dim),
+            nn.GELU()
+        )
+        
+        # 创建可学习的知识嵌入基向量（仿照exp_bio3.0_improved的方案）
+        # 当禁用VLM Retriever时，使用这个可学习参数作为note_embeds的替代
+        # 初始化为小的随机值，而不是全零
+        self.learnable_knowledge_base = nn.Parameter(
+            torch.randn(1, embed_dim) * 0.02  # 小的随机初始化
         )
         
         # 🔥 5.0优势6：Text Adapter（VLM集成增强）
@@ -399,12 +421,25 @@ class BioCOT_v3_2(nn.Module):
             f_colpo_processed = f_colpo
             all_noise_probs = []
         
-        # --- Step 1: 语义锚点生成（使用VLMAugmentedRetriever）---
-        z_sem = self.knowledge_retriever(
-            image_names=image_names,
-            clinical_info=clinical_info,
-            device=str(device)
-        )  # [B, embed_dim]
+        # --- Step 1: 语义锚点生成（使用VLMAugmentedRetriever或静态嵌入）---
+        # 仿照exp_bio3.0_improved的方案：使用note_projector处理嵌入
+        if self.use_vlm_retriever and self.knowledge_retriever is not None:
+            # 使用VLM Retriever获取动态知识嵌入
+            note_embeds = self.knowledge_retriever(
+                image_names=image_names,
+                clinical_info=clinical_info,
+                device=str(device)
+            )  # [B, embed_dim]
+        else:
+            # 禁用VLM Retriever：使用可学习的静态嵌入（消融实验）
+            # 仿照exp_bio3.0_improved：使用可学习参数作为note_embeds
+            note_embeds = self.learnable_knowledge_base.expand(B, -1)  # [B, embed_dim]
+        
+        # 统一通过note_projector处理（仿照exp_bio3.0_improved）
+        # 处理note_embeds维度（兼容[B, D]和[B, 1, D]）
+        if note_embeds.dim() == 3:
+            note_embeds = note_embeds.squeeze(1)  # [B, D]
+        z_sem = self.note_projector(note_embeds)  # [B, embed_dim]
         
         # 🔥 5.0优势6：Text Adapter
         if self.text_adapter is not None:
@@ -557,13 +592,19 @@ class BioCOT_v3_2(nn.Module):
 
 def create_bio_cot_v3_2(config):
     """Factory function to create BioCOT_v3_2 model (整合5.0优势)"""
-    return BioCOT_v3_2(
+    # 检查是否禁用VLM Retriever
+    use_vlm_retriever = getattr(config, 'use_vlm_retriever', True)
+    
+    # 如果禁用VLM Retriever，vlm_json_path可以为None
+    vlm_json_path = getattr(config, 'vlm_json_path', None) if use_vlm_retriever else None
+    
+    model = BioCOT_v3_2(
         embed_dim=config.embed_dim,
         num_classes=config.num_classes,
         num_centers=config.num_centers,
         input_dim=config.input_dim,
-        vlm_json_path=config.vlm_json_path,
-        text_model_name=config.text_model_name,
+        vlm_json_path=vlm_json_path,
+        text_model_name=getattr(config, 'text_model_name', "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"),
         use_visual_notes=config.use_visual_notes,
         use_ot=config.use_ot,
         use_dual=config.use_dual,
@@ -583,4 +624,7 @@ def create_bio_cot_v3_2(config):
         mhc_epsilon=getattr(config, 'mhc_epsilon', 0.05),
         use_text_adapter=getattr(config, 'use_text_adapter', True),
     )
+    # 设置是否使用VLM Retriever（用于消融实验）
+    model.use_vlm_retriever = use_vlm_retriever
+    return model
 
