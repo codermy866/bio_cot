@@ -26,10 +26,18 @@ import math
 import numpy as np
 from typing import Dict, Tuple, Optional, List
 
-# 导入基础组件
-from src.models.bida.bio_cot_v2 import DualHeadImageEncoder
-from src.models.bida.memory_bank import NoiseMemoryBank, CenterDiscriminator
-from src.models.bida.losses import SinkhornDistance, CounterfactualConsistencyLoss, AdversarialLoss
+# 导入基础组件（从exp_bio3.2本地的src目录导入）
+import sys
+from pathlib import Path
+# 添加exp_bio3.2的src目录到sys.path
+local_src_path = Path(__file__).resolve().parent.parent / 'src'
+if local_src_path.exists():
+    sys.path.insert(0, str(local_src_path.parent))
+    from src.models.bida.bio_cot_v2 import DualHeadImageEncoder
+    from src.models.bida.memory_bank import NoiseMemoryBank, CenterDiscriminator
+    from src.models.bida.losses import SinkhornDistance, CounterfactualConsistencyLoss, AdversarialLoss
+else:
+    raise ImportError(f"无法找到src模块，请检查路径: {local_src_path}")
 
 # 导入增强后的 Visual Notes（3.1的优势）
 from .visual_notes import VisualNotesModule

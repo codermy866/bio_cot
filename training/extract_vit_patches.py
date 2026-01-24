@@ -16,15 +16,18 @@ _vit_device = None
 def extract_patch_features_with_vit(
     images: torch.Tensor, 
     device: torch.device, 
-    log_func=None
+    log_func=None,
+    batch_size: int = 16  # 🔧 添加batch_size参数以支持分批处理
 ) -> torch.Tensor:
     """
     修复漏洞1：从ViT提取Patch特征（丢弃[CLS] token）
+    🔧 优化：增加分批处理以避免显存溢出
     
     Args:
         images: [B, C, H, W] 或 [B, F, C, H, W] 图像tensor
         device: GPU设备
         log_func: 日志输出函数（可选）
+        batch_size: 分批处理的批次大小（默认16）
     
     Returns:
         patch_features: [B, N, D] 或 [B, F, N, D] Patch特征（已丢弃[CLS]）
@@ -70,17 +73,30 @@ def extract_patch_features_with_vit(
     if not images.is_cuda or images.device != device:
         images = images.to(device, non_blocking=True)
     
-    # 特征提取（完全在GPU上）
+    # 特征提取（完全在GPU上）- 🔧 增加分批处理以避免显存溢出
     with torch.no_grad():
         if len(images.shape) == 5:  # [B, F, C, H, W]
             B, num_frames, C, H, W = images.shape
-            images = images.view(B * num_frames, C, H, W)
+            images_flat = images.view(B * num_frames, C, H, W)
             
-            # 获取所有tokens [B*F, N+1, D]
-            all_tokens = _vit_model.forward_features(images)
+            # 🔧 分批处理以避免显存溢出
+            total_samples = B * num_frames
+            all_patch_tokens = []
             
-            # 修复漏洞1：丢弃[CLS] token (index 0)，只保留Patches
-            patch_tokens = all_tokens[:, 1:, :]  # [B*F, N, D] N=196
+            for i in range(0, total_samples, batch_size):
+                end_idx = min(i + batch_size, total_samples)
+                batch_images = images_flat[i:end_idx]
+                
+                # 获取所有tokens [batch, N+1, D]
+                all_tokens = _vit_model.forward_features(batch_images)
+                
+                # 修复漏洞1：丢弃[CLS] token (index 0)，只保留Patches
+                patch_tokens = all_tokens[:, 1:, :]  # [batch, N, D] N=196
+                
+                all_patch_tokens.append(patch_tokens)
+            
+            # 拼接所有批次 [B*F, N, D]
+            patch_tokens = torch.cat(all_patch_tokens, dim=0)
             
             # Reshape回 [B, F, N, D]
             patch_tokens = patch_tokens.view(B, num_frames, -1, patch_tokens.shape[-1])
@@ -88,11 +104,24 @@ def extract_patch_features_with_vit(
             return patch_tokens
             
         elif len(images.shape) == 4:  # [B, C, H, W]
-            # 获取所有tokens [B, N+1, D]
-            all_tokens = _vit_model.forward_features(images)
+            # 🔧 分批处理以避免显存溢出
+            B, C, H, W = images.shape
+            all_patch_tokens = []
             
-            # 修复漏洞1：丢弃[CLS] token (index 0)，只保留Patches
-            patch_tokens = all_tokens[:, 1:, :]  # [B, N, D] N=196
+            for i in range(0, B, batch_size):
+                end_idx = min(i + batch_size, B)
+                batch_images = images[i:end_idx]
+                
+                # 获取所有tokens [batch, N+1, D]
+                all_tokens = _vit_model.forward_features(batch_images)
+                
+                # 修复漏洞1：丢弃[CLS] token (index 0)，只保留Patches
+                patch_tokens = all_tokens[:, 1:, :]  # [batch, N, D] N=196
+                
+                all_patch_tokens.append(patch_tokens)
+            
+            # 拼接所有批次 [B, N, D]
+            patch_tokens = torch.cat(all_patch_tokens, dim=0)
             
             return patch_tokens
         else:

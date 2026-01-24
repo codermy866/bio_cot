@@ -10,8 +10,12 @@ from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore', category=UserWarning)
 
-# 在导入torch之前设置CUDA_VISIBLE_DEVICES
+# 在导入torch之前设置CUDA_VISIBLE_DEVICES和显存优化环境变量
 import os
+# 🔧 PyTorch显存优化：避免碎片化
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+# 🔧 消除tokenizers多进程警告
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 # 自动选择可用的GPU（优先使用GPU 1，如果被占用则使用GPU 0）
 # 检查GPU使用情况，选择使用率较低的GPU
 import subprocess
@@ -73,6 +77,13 @@ try:
 except ImportError:
     # 如果相对导入失败，使用绝对导入
     from training.extract_vit_patches import extract_patch_features_with_vit
+# 从exp_bio3.2本地的src目录导入
+import sys
+from pathlib import Path
+# 添加exp_bio3.2的src目录到sys.path
+local_src_path = Path(__file__).resolve().parent.parent / 'src'
+if local_src_path.exists():
+    sys.path.insert(0, str(local_src_path.parent))
 from src.utils.anti_overfitting import FocalLoss
 
 
@@ -290,19 +301,19 @@ def train_epoch(
         if len(oct_images.shape) == 5:  # [B, F, C, H, W]
             F_oct = oct_images.shape[1]
             oct_images_flat = oct_images.view(B_oct * F_oct, *oct_images.shape[2:])
-            oct_features_patch = extract_patch_features_with_vit(oct_images_flat, device)
+            oct_features_patch = extract_patch_features_with_vit(oct_images_flat, device, batch_size=config.vit_batch_size)
             oct_features_patch = oct_features_patch.view(B_oct, F_oct, 196, 768).mean(dim=1)
         else:
-            oct_features_patch = extract_patch_features_with_vit(oct_images, device)
+            oct_features_patch = extract_patch_features_with_vit(oct_images, device, batch_size=config.vit_batch_size)
         
         B_colpo = colposcopy_images.shape[0]
         if len(colposcopy_images.shape) == 5:  # [B, N, C, H, W]
             N_colpo = colposcopy_images.shape[1]
             colpo_images_flat = colposcopy_images.view(B_colpo * N_colpo, *colposcopy_images.shape[2:])
-            colpo_features_patch = extract_patch_features_with_vit(colpo_images_flat, device)
+            colpo_features_patch = extract_patch_features_with_vit(colpo_images_flat, device, batch_size=config.vit_batch_size)
             colpo_features_patch = colpo_features_patch.view(B_colpo, N_colpo, 196, 768).mean(dim=1)
         else:
-            colpo_features_patch = extract_patch_features_with_vit(colposcopy_images, device)
+            colpo_features_patch = extract_patch_features_with_vit(colposcopy_images, device, batch_size=config.vit_batch_size)
         
         # 🔥 5.0优势：提取clinical_features用于ClinicalEvolver
         clinical_features = None
@@ -590,24 +601,24 @@ def validate(model, dataloader, criterion, device, epoch, config, log_print=None
             if len(oct_images.shape) == 5:  # [B, F, C, H, W]
                 F_oct = oct_images.shape[1]
                 oct_images_flat = oct_images.view(B_oct * F_oct, *oct_images.shape[2:])  # [B*F, C, H, W]
-                oct_features_patch = extract_patch_features_with_vit(oct_images_flat, device)  # [B*F, 196, 768]
+                oct_features_patch = extract_patch_features_with_vit(oct_images_flat, device, batch_size=config.vit_batch_size)  # [B*F, 196, 768]
                 # 重新reshape并平均
                 oct_features_patch = oct_features_patch.view(B_oct, F_oct, 196, 768)  # [B, F, 196, 768]
                 oct_features_patch = oct_features_patch.mean(dim=1)  # [B, 196, 768] 平均所有帧
             else:
-                oct_features_patch = extract_patch_features_with_vit(oct_images, device)  # [B, 196, 768]
+                oct_features_patch = extract_patch_features_with_vit(oct_images, device, batch_size=config.vit_batch_size)  # [B, 196, 768]
             
             # Colposcopy: [B, N, C, H, W] -> [B*N, C, H, W] -> [B*N, 196, 768] -> [B, N, 196, 768] -> [B, 196, 768] (平均)
             B_colpo = colposcopy_images.shape[0]
             if len(colposcopy_images.shape) == 5:  # [B, N, C, H, W]
                 N_colpo = colposcopy_images.shape[1]
                 colpo_images_flat = colposcopy_images.view(B_colpo * N_colpo, *colposcopy_images.shape[2:])  # [B*N, C, H, W]
-                colpo_features_patch = extract_patch_features_with_vit(colpo_images_flat, device)  # [B*N, 196, 768]
+                colpo_features_patch = extract_patch_features_with_vit(colpo_images_flat, device, batch_size=config.vit_batch_size)  # [B*N, 196, 768]
                 # 重新reshape并平均
                 colpo_features_patch = colpo_features_patch.view(B_colpo, N_colpo, 196, 768)  # [B, N, 196, 768]
                 colpo_features_patch = colpo_features_patch.mean(dim=1)  # [B, 196, 768] 平均所有图
             else:
-                colpo_features_patch = extract_patch_features_with_vit(colposcopy_images, device)  # [B, 196, 768]
+                colpo_features_patch = extract_patch_features_with_vit(colposcopy_images, device, batch_size=config.vit_batch_size)  # [B, 196, 768]
             
             # 前向传播（3.2改动：使用image_names和clinical_info）
             # [关键修改] 验证时也设置 return_loss_components=True 以获取 Recall
@@ -937,7 +948,7 @@ def main():
         transform=transform,
         oct_num_frames=config.oct_frames,
         max_col_images=config.colposcopy_images,
-        balance_negative_frames=True,
+        balance_negative_frames=False,  # 🔧 禁用帧数平衡以避免显存溢出
         data_root=str(config.data_root)
     )
     log_print(f"  ✅ 训练集加载完成: {len(train_dataset)} 个样本")
@@ -947,7 +958,7 @@ def main():
         transform=transform,
         oct_num_frames=config.oct_frames,
         max_col_images=config.colposcopy_images,
-        balance_negative_frames=True,
+        balance_negative_frames=False,  # 🔧 禁用帧数平衡以避免显存溢出
         data_root=str(config.data_root)
     )
     log_print(f"  ✅ 验证集加载完成: {len(val_dataset)} 个样本")
