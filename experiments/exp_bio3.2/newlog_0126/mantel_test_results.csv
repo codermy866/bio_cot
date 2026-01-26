@@ -1,0 +1,6 @@
+Comparison,Correlation,P-value,Significant
+Feature Distance vs Label Distance,0.27783701452343823,0.001,Yes
+Feature Distance vs Center Distance,0.15067961354496448,0.001,Yes
+OCT Distance vs Colposcopy Distance,0.038383150171449054,0.014,Yes
+OCT Distance vs Clinical Distance,0.05423376678351859,0.002,Yes
+Colposcopy Distance vs Clinical Distance,0.06427469130773442,0.001,Yes
