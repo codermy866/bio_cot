@@ -86,11 +86,11 @@ def extract_patch_features_with_vit(
             for i in range(0, total_samples, batch_size):
                 end_idx = min(i + batch_size, total_samples)
                 batch_images = images_flat[i:end_idx]
-                
+            
                 # 获取所有tokens [batch, N+1, D]
                 all_tokens = _vit_model.forward_features(batch_images)
-                
-                # 修复漏洞1：丢弃[CLS] token (index 0)，只保留Patches
+            
+            # 修复漏洞1：丢弃[CLS] token (index 0)，只保留Patches
                 patch_tokens = all_tokens[:, 1:, :]  # [batch, N, D] N=196
                 
                 all_patch_tokens.append(patch_tokens)
@@ -114,8 +114,8 @@ def extract_patch_features_with_vit(
                 
                 # 获取所有tokens [batch, N+1, D]
                 all_tokens = _vit_model.forward_features(batch_images)
-                
-                # 修复漏洞1：丢弃[CLS] token (index 0)，只保留Patches
+            
+            # 修复漏洞1：丢弃[CLS] token (index 0)，只保留Patches
                 patch_tokens = all_tokens[:, 1:, :]  # [batch, N, D] N=196
                 
                 all_patch_tokens.append(patch_tokens)
