@@ -1,0 +1,6 @@
+﻿Center,Center Code,Train (n),Val (n),External Test (n),Total (n),Positive (n₊),Negative (n₋),Positive Rate (%)
+Enshi（恩施）,M22105,320,84,0,404,131,273,32.4%
+Jingzhou（荆州）,M22101,0,0,79,79,28,51,35.4%
+Shiyan（十堰）,M22104,0,0,69,69,21,48,30.4%
+Wuda（武大）,M20105,73,16,0,89,89,0,100.0%
+Xiangyang（襄阳）,M22102,276,68,0,344,53,291,15.4%

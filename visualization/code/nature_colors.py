@@ -82,13 +82,13 @@ FEATURE_NAMES = {
     'feature_9': 'Fused Feature',
 }
 
-# 中心名称（英文）
+# 中心名称（英文）- 干净的医院名称，不包含代码或特殊字符，每个中心只写一个医院名
 CENTER_NAMES_EN = {
-    0: 'Enshi-1 (M20105)',
-    1: 'Small Center (M20203)',
-    2: 'Xiangyang (M22102)',
-    3: 'Enshi/Wuda (M22105)',
-    4: 'Shiyan/Jingzhou (External)'
+    0: 'Enshi',
+    1: 'Wuda',
+    2: 'Xiangyang',
+    3: 'Jingzhou',  # 改为单个医院名
+    4: 'Shiyan'     # 改为单个医院名
 }
 
 # 辅助函数：获取feature显示名称

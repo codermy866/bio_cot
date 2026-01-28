@@ -2,54 +2,30 @@
 Bio-COT 3.2 训练和可视化报告
 ================================================================================
 
-生成时间: 2026-01-26 17:54:35
-日志文件: /data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio3.2/logs/train_bio_cot_v3.2_final_20260126_111511.log
+生成时间: 2026-01-27 08:14:07
+日志文件: /data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio3.2/logs/train_bio_cot_v3.2_auto_20260126_110429.log
 
 最佳结果指标:
 --------------------------------------------------------------------------------
-  auc: 0.8827
+  auc: 0.8666
+  epoch: 9
+  accuracy: 0.7575
+  precision: 0.7771
+  recall: 0.5273
+  specificity: 0.9646
+  f1_score: 0.7836
+  mcc: 0.581
+  pr_auc: 0.8065
 
 输出文件:
 --------------------------------------------------------------------------------
   指标CSV: /data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio3.2/newlog_0126/best_metrics.csv
-  图表目录: /data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio3.2/newlog_0126/figures
+  图表目录: /data2/hmy/VLM_Caus_Rm_Mics/experiments/figures
   报告文件: /data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio3.2/newlog_0126/training_report.txt
 
 生成的图表文件:
 --------------------------------------------------------------------------------
-  Conditional_Means.pdf
-  Conditional_Means.png
   Confusion_Matrix_Best_Results.pdf
   Confusion_Matrix_Best_Results.png
-  Cubehelix_Palettes.pdf
-  Cubehelix_Palettes.png
-  Large_Distributions.pdf
-  Large_Distributions.png
-  Linear_Regression_Marginal.pdf
-  Linear_Regression_Marginal.png
-  Mantel_Test_Barplot.pdf
-  Mantel_Test_Barplot.png
-  Mantel_Test_Combined.pdf
-  Mantel_Test_Combined.png
-  Mantel_Test_Correlation_Matrix.pdf
-  Mantel_Test_Correlation_Matrix.png
-  Mantel_Test_Final.pdf
-  Mantel_Test_Final.png
-  Mantel_Test_Heatmap.pdf
-  Mantel_Test_Heatmap.png
-  Mantel_Test_Scatter.pdf
-  Mantel_Test_Scatter.png
-  Mantel_Test_Standard.pdf
-  Mantel_Test_Standard.png
-  Multiple_Linear_Regression.pdf
-  Multiple_Linear_Regression.png
-  Performance_Metrics_Best_Results.pdf
-  Performance_Metrics_Best_Results.png
-  ROC_Curve_Best_Results.pdf
-  ROC_Curve_Best_Results.png
-  Regression_Strip_Plot.pdf
-  Regression_Strip_Plot.png
-  Scatterplot_Matrix.pdf
-  Scatterplot_Matrix.png
 
 ================================================================================

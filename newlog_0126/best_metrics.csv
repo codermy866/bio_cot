@@ -1,2 +1,2 @@
-auc
-0.8827
+auc,epoch,accuracy,precision,recall,specificity,f1_score,mcc,pr_auc
+0.8666,9,0.7575,0.7771,0.5273,0.9646,0.7836,0.581,0.8065

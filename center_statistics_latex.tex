@@ -1,0 +1,45 @@
+% 表1：详细分布表
+
+\begin{table}[t]
+\centering
+\caption{Detailed center-wise distribution across data subsets.}
+\label{tab:center_distribution_detailed}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllcccc}
+\toprule
+Subset & Center & Code & Total $(n)$ & Positive $(n_{+})$ & Negative $(n_{-})$ & Positive Rate (\%) \\
+\midrule
+Train (internal) & Enshi（恩施） & M22105 & 320 & 102 & 218 & 31.9% \\
+Train (internal) & Wuda（武大） & M20105 & 73 & 73 & 0 & 100.0% \\
+Train (internal) & Xiangyang（襄阳） & M22102 & 276 & 43 & 233 & 15.6% \\
+Val (internal) & Enshi（恩施） & M22105 & 84 & 29 & 55 & 34.5% \\
+Val (internal) & Wuda（武大） & M20203 & 16 & 16 & 0 & 100.0% \\
+Val (internal) & Xiangyang（襄阳） & M22102 & 68 & 10 & 58 & 14.7% \\
+External Test & Jingzhou（荆州） & M22101 & 79 & 28 & 51 & 35.4% \\
+External Test & Shiyan（十堰） & M22104 & 69 & 21 & 48 & 30.4% \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+
+% 表2：汇总表
+
+\begin{table}[t]
+\centering
+\caption{Center-wise summary statistics of the five-center multimodal cervical lesion dataset.}
+\label{tab:center_summary}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llccccccl}
+\toprule
+Center & Code & Train $(n)$ & Val $(n)$ & External Test $(n)$ & Total $(n)$ & Positive $(n_{+})$ & Negative $(n_{-})$ & Positive Rate (\%) \\
+\midrule
+Enshi（恩施） & M22105 & 320 & 84 & 0 & 404 & 131 & 273 & 32.4% \\
+Jingzhou（荆州） & M22101 & 0 & 0 & 79 & 79 & 28 & 51 & 35.4% \\
+Shiyan（十堰） & M22104 & 0 & 0 & 69 & 69 & 21 & 48 & 30.4% \\
+Wuda（武大） & M20105 & 73 & 16 & 0 & 89 & 89 & 0 & 100.0% \\
+Xiangyang（襄阳） & M22102 & 276 & 68 & 0 & 344 & 53 & 291 & 15.4% \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
