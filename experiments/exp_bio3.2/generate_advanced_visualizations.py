@@ -77,6 +77,19 @@ FEATURE_NAMES = {
     'feature_9': 'Fused Feature',
 }
 
+# 中心名称映射（使用Center A/B/C/D/E格式）
+CENTER_NAMES = {
+    0: 'Center A',
+    1: 'Center B',
+    2: 'Center C',
+    3: 'Center D',
+    4: 'Center E'
+}
+
+def get_center_name(center_id):
+    """获取中心显示名称"""
+    return CENTER_NAMES.get(int(center_id), f'Center {chr(65 + int(center_id))}')  # 65是'A'的ASCII码
+
 print("=" * 80)
 print("🎨 高级可视化图表生成")
 print("=" * 80)
@@ -287,7 +300,72 @@ try:
         x_range = np.linspace(data.min(), data.max(), 200)
         ax.plot(x_range, kde(x_range), color=COLORS['positive'], linewidth=2.5, label='KDE')
         
-        # 2. Violin plot (如果有分组)
+        # 统计检验信息
+        stats_text = []
+        
+        # 正态性检验
+        from scipy.stats import shapiro, normaltest
+        try:
+            # 如果样本量>5000，使用normaltest；否则使用shapiro
+            if len(data) > 5000:
+                stat, p_norm = normaltest(data)
+                test_name = 'D\'Agostino'
+            else:
+                stat, p_norm = shapiro(data)
+                test_name = 'Shapiro-Wilk'
+            
+            is_normal = p_norm > 0.05
+            norm_label = 'Normal' if is_normal else f'Non-normal (p={p_norm:.3f})'
+            stats_text.append(f'{test_name}: {norm_label}')
+        except:
+            pass
+        
+        # 如果按标签分组，添加组间比较
+        if 'Label' in feature_df.columns:
+            feat_neg = feature_df[feature_df['Label'] == 0][feat_col].values
+            feat_pos = feature_df[feature_df['Label'] == 1][feat_col].values
+            
+            if len(feat_neg) > 0 and len(feat_pos) > 0:
+                from scipy.stats import ttest_ind, mannwhitneyu
+                
+                # 先检查正态性，决定使用参数还是非参数检验
+                try:
+                    _, p_neg = shapiro(feat_neg) if len(feat_neg) <= 5000 else normaltest(feat_neg)
+                    _, p_pos = shapiro(feat_pos) if len(feat_pos) <= 5000 else normaltest(feat_pos)
+                    both_normal = p_neg > 0.05 and p_pos > 0.05
+                except:
+                    both_normal = False
+                
+                if both_normal:
+                    # 使用t检验
+                    from scipy.stats import ttest_ind
+                    t_stat, p_val = ttest_ind(feat_neg, feat_pos)
+                    test_name = 't-test'
+                    stat_val = f't={t_stat:.2f}'
+                else:
+                    # 使用Mann-Whitney U检验
+                    from scipy.stats import mannwhitneyu
+                    u_stat, p_val = mannwhitneyu(feat_neg, feat_pos, alternative='two-sided')
+                    test_name = 'Mann-Whitney U'
+                    stat_val = f'U={u_stat:.0f}'
+                
+                # 显著性标注
+                if p_val < 0.001:
+                    sig = '***'
+                elif p_val < 0.01:
+                    sig = '**'
+                elif p_val < 0.05:
+                    sig = '*'
+                else:
+                    sig = 'ns'
+                
+                # 统计信息不显示在图表中（根据用户要求）
+                # 图例中不包含任何统计信息或显著性符号
+                pass
+        
+        # 统计信息框已移除，图例只显示数据分组信息
+        
+        # 2. Violin plot (如果有分组) - 优化位置
         if 'Label' in feature_df.columns:
             # 在右侧添加violin plot
             ax2 = ax.twinx()
@@ -298,7 +376,7 @@ try:
                                    widths=(data.max()-data.min())*0.05, showmeans=True)
             for pc in parts['bodies']:
                 pc.set_facecolor(COLORS['center_2'])
-                pc.set_alpha(0.6)
+                pc.set_alpha=0.6
         
         ax.set_title(f'Distribution: {feat_col}', fontsize=12, fontweight='bold', pad=10)
         ax.set_xlabel(feat_col, fontsize=10)
@@ -328,31 +406,311 @@ print("🎨 图表 4: Scatterplot Matrix")
 print("=" * 80)
 
 try:
-    # 选择前6个特征（如果可用）
-    feature_cols_for_matrix = [col for col in feature_df.columns if col not in ['Label', 'Center']][:6]
+    # 智能选择特征：优先选择对标签分离有显著贡献的特征
+    feature_cols_available = [col for col in feature_df.columns if col not in ['Label', 'Center', 'Label_Name']]
     
-    if len(feature_cols_for_matrix) >= 3:
-        # 创建pairplot
-        if 'Label_Name' in feature_df.columns:
-            plot_df = feature_df[feature_cols_for_matrix + ['Label_Name']].copy()
-            hue_col = 'Label_Name'
+    if len(feature_cols_available) >= 3:
+        # 如果有标签，计算每个特征对标签分离的贡献
+        if 'Label' in feature_df.columns:
+            from scipy.stats import ttest_ind
+            feature_scores = []
+            for col in feature_cols_available:
+                feat_neg = feature_df[feature_df['Label'] == 0][col].values
+                feat_pos = feature_df[feature_df['Label'] == 1][col].values
+                if len(feat_neg) > 0 and len(feat_pos) > 0:
+                    t_stat, p_val = ttest_ind(feat_neg, feat_pos)
+                    # 使用t统计量的绝对值作为重要性评分
+                    feature_scores.append((col, abs(t_stat), p_val))
+            
+            # 按重要性排序，选择前6个
+            feature_scores.sort(key=lambda x: x[1], reverse=True)
+            feature_cols_for_matrix = [col for col, _, _ in feature_scores[:6]]
+            print(f"  📊 选择特征（基于标签分离度）: {len(feature_cols_for_matrix)}个特征")
         else:
-            plot_df = feature_df[feature_cols_for_matrix + (['Label'] if 'Label' in feature_df.columns else [])].copy()
-            hue_col = 'Label' if 'Label' in plot_df.columns else None
+            # 如果没有标签，选择前6个特征
+            feature_cols_for_matrix = feature_cols_available[:6]
         
-        # 使用seaborn的pairplot
-        g = sns.pairplot(plot_df, hue=hue_col,
-                        palette=[COLORS['negative'], COLORS['positive']] if hue_col else None,
-                        hue_order=['Negative', 'Positive'] if hue_col == 'Label_Name' else None,
-                        diag_kind='kde', plot_kws={'alpha': 0.6, 's': 20},
-                        diag_kws={'alpha': 0.7, 'fill': True})
-        
-        g.fig.suptitle('Scatterplot Matrix', fontsize=14, fontweight='bold', y=1.02)
-        g.fig.patch.set_facecolor(COLORS['background'])
-        
-        # 设置所有子图的背景色
-        for ax in g.axes.flatten():
-            ax.set_facecolor(COLORS['background'])
+        if len(feature_cols_for_matrix) >= 3:
+            # 优化：直接选择类别分离度最高的前4个特征（而不是基于相关性筛选）
+            # 重新计算每个特征的类别分离度（Cohen's d），选择分离度最高的
+            from scipy.stats import ttest_ind
+            
+            feature_separation_scores = []
+            for col in feature_cols_for_matrix:
+                if 'Label' in feature_df.columns:
+                    feat_neg = feature_df[feature_df['Label'] == 0][col].values
+                    feat_pos = feature_df[feature_df['Label'] == 1][col].values
+                elif 'Label_Name' in feature_df.columns:
+                    feat_neg = feature_df[feature_df['Label_Name'] == 'Negative'][col].values
+                    feat_pos = feature_df[feature_df['Label_Name'] == 'Positive'][col].values
+                else:
+                    continue
+                    
+                if len(feat_neg) > 0 and len(feat_pos) > 0:
+                    # 计算Cohen's d（效应量，更好的分离度指标）
+                    mean_diff = abs(feat_pos.mean() - feat_neg.mean())
+                    pooled_std = np.sqrt((feat_neg.std()**2 + feat_pos.std()**2) / 2)
+                    cohens_d = mean_diff / pooled_std if pooled_std > 0 else 0
+                    t_stat, p_val = ttest_ind(feat_neg, feat_pos)
+                    feature_separation_scores.append((col, cohens_d, abs(t_stat), p_val))
+            
+            # 按Cohen's d排序，选择分离度最高的特征
+            feature_separation_scores.sort(key=lambda x: x[1], reverse=True)
+            
+            # 只选择分离度足够高的特征（Cohen's d > 0.3 且 p < 0.05）
+            # 这样可以确保选择的特征真正能区分阳性和阴性
+            high_separation_features = [(col, d, t, p) for col, d, t, p in feature_separation_scores 
+                                       if d > 0.3 and p < 0.05]
+            
+            if len(high_separation_features) >= 2:
+                # 如果分离度高的特征足够，选择前4个（或全部，如果少于4个）
+                selected_features = [col for col, _, _, _ in high_separation_features[:4]]
+                print(f"  📊 选择类别分离度足够高的 {len(selected_features)} 个特征 (Cohen's d > 0.3, p < 0.05):")
+                for i, (col, d, t_stat, p_val) in enumerate([(col, d, t, p) for col, d, t, p in feature_separation_scores if col in selected_features]):
+                    sep_status = "✅ 高分离度" if d > 0.3 and p_val < 0.05 else ("⚠️ 中等分离度" if d > 0.2 or p_val < 0.05 else "❌ 低分离度")
+                    print(f"     {i+1}. {col}: Cohen's d={d:.3f}, |t|={t_stat:.2f}, p={p_val:.4f} {sep_status}")
+                
+                # 创建筛选后的pairplot（使用原始特征）
+                if 'Label_Name' in feature_df.columns:
+                    plot_df = feature_df[selected_features + ['Label_Name']].copy()
+                    hue_col = 'Label_Name'
+                else:
+                    plot_df = feature_df[selected_features + (['Label'] if 'Label' in feature_df.columns else [])].copy()
+                    hue_col = 'Label' if 'Label' in plot_df.columns else None
+            else:
+                # 如果分离度高的特征太少，使用PCA降维创建更好的特征空间
+                print(f"  ⚠️  高分离度特征较少（只有{len(high_separation_features)}个），使用PCA降维创建特征空间...")
+                from sklearn.decomposition import PCA
+                from sklearn.preprocessing import StandardScaler
+                
+                # 使用所有特征进行PCA
+                all_feature_data = feature_df[feature_cols_for_matrix].values
+                scaler = StandardScaler()
+                scaled_data = scaler.fit_transform(all_feature_data)
+                
+                # PCA降维到4个主成分
+                pca = PCA(n_components=min(4, len(feature_cols_for_matrix)))
+                pca_features = pca.fit_transform(scaled_data)
+                
+                # 创建PCA特征DataFrame
+                pca_df = pd.DataFrame(pca_features, columns=[f'PC{i+1}' for i in range(pca_features.shape[1])])
+                
+                # 计算PCA主成分的类别分离度
+                pca_separation = []
+                for pc_col in pca_df.columns:
+                    if 'Label' in feature_df.columns:
+                        pc_neg = pca_df.loc[feature_df['Label'] == 0, pc_col].values
+                        pc_pos = pca_df.loc[feature_df['Label'] == 1, pc_col].values
+                    elif 'Label_Name' in feature_df.columns:
+                        pc_neg = pca_df.loc[feature_df['Label_Name'] == 'Negative', pc_col].values
+                        pc_pos = pca_df.loc[feature_df['Label_Name'] == 'Positive', pc_col].values
+                    else:
+                        continue
+                    
+                    if len(pc_neg) > 0 and len(pc_pos) > 0:
+                        mean_diff = abs(pc_pos.mean() - pc_neg.mean())
+                        pooled_std = np.sqrt((pc_neg.std()**2 + pc_pos.std()**2) / 2)
+                        cohens_d = mean_diff / pooled_std if pooled_std > 0 else 0
+                        t_stat, p_val = ttest_ind(pc_neg, pc_pos)
+                        pca_separation.append((pc_col, cohens_d, abs(t_stat), p_val))
+                
+                pca_separation.sort(key=lambda x: x[1], reverse=True)
+                
+                # 计算并显示每个主成分的主要载荷（loadings）
+                pca_loadings = pca.components_  # [n_components, n_features]
+                feature_names_list = [FEATURE_NAMES.get(col, col) for col in feature_cols_for_matrix]
+                
+                # 选择分离度最高的PCA主成分
+                selected_pc = [pc for pc, _, _, _ in pca_separation[:4]]
+                selected_features = selected_pc
+                
+                # 更新plot_df使用PCA特征
+                plot_df = pca_df[selected_pc].copy()
+                if 'Label_Name' in feature_df.columns:
+                    plot_df['Label_Name'] = feature_df['Label_Name'].values
+                    hue_col = 'Label_Name'
+                elif 'Label' in feature_df.columns:
+                    plot_df['Label'] = feature_df['Label'].values
+                    hue_col = 'Label'
+                else:
+                    hue_col = None
+                
+                print(f"  📊 PCA主成分分离度:")
+                print(f"     (PC1-PC4是主成分分析的结果，将原始特征线性组合得到的新特征空间)")
+                
+                # 存储PCA信息用于标题
+                pca_info_dict = {}
+                for i, (pc, d, t_stat, p_val) in enumerate(pca_separation[:len(selected_pc)]):
+                    pc_idx = int(pc.replace('PC', '')) - 1
+                    var_explained = pca.explained_variance_ratio_[pc_idx] * 100
+                    
+                    # 获取该主成分的载荷
+                    loadings = pca_loadings[pc_idx]
+                    # 找到载荷最大的前2个特征
+                    top_indices = np.argsort(np.abs(loadings))[-2:][::-1]
+                    top_features = [f"{feature_names_list[idx]}" for idx in top_indices]
+                    
+                    print(f"     {i+1}. {pc}: Cohen's d={d:.3f}, |t|={t_stat:.2f}, p={p_val:.4f}, 方差解释={var_explained:.1f}%")
+                    print(f"        主要特征: {', '.join(top_features)}")
+                    
+                    # 存储信息用于标题
+                    pca_info_dict[pc] = {
+                        'top_features': top_features,
+                        'var_explained': var_explained
+                    }
+            
+            # 使用seaborn的pairplot，配色与Conditional_Means保持一致
+            # 使用更深的颜色，与Conditional_Means保持一致
+            deeper_palette = ['#A8B5C6', '#B87A6A']  # 更深的蓝灰色(Negative)和红棕色(Positive)，与Conditional_Means一致
+            g = sns.pairplot(plot_df, hue=hue_col,
+                            palette=deeper_palette if hue_col else None,
+                            hue_order=['Negative', 'Positive'] if hue_col == 'Label_Name' else None,
+                            diag_kind='kde', 
+                            plot_kws={'alpha': 0.8, 's': 60, 'edgecolors': 'white', 'linewidths': 1.0},  # 提高alpha和size，颜色更深
+                            diag_kws={'alpha': 0.9, 'fill': True, 'linewidth': 3.0})  # 增强KDE曲线
+            
+            # 根据是否使用PCA设置标题和说明
+            if selected_features[0].startswith('PC'):
+                title = 'Scatterplot Matrix (PCA Components)'
+                # 生成详细的PCA说明
+                if 'pca_info_dict' in locals():
+                    pca_info = []
+                    for pc in selected_features:
+                        if pc in pca_info_dict:
+                            info = pca_info_dict[pc]
+                            top_feat = info['top_features'][0] if info['top_features'] else 'Mixed'
+                            var_exp = info['var_explained']
+                            pca_info.append(f"{pc}: {top_feat} ({var_exp:.1f}%)")
+                    subtitle = f"PCA Components: {'; '.join(pca_info)}"
+                else:
+                    subtitle = 'PC1-PC4: Principal Components from PCA dimensionality reduction'
+            else:
+                title = 'Scatterplot Matrix (Selected Features)'
+                subtitle = None
+            
+            g.fig.suptitle(title, fontsize=14, fontweight='bold', y=1.02)
+            if subtitle:
+                g.fig.text(0.5, 0.98, subtitle, ha='center', fontsize=8, style='italic', color='gray', wrap=True)
+            g.fig.patch.set_facecolor(COLORS['background'])
+            
+            # 获取实际的特征列名（可能是原始特征或PCA主成分）
+            actual_feature_cols = [col for col in plot_df.columns if col not in ['Label', 'Label_Name']]
+            n_features = len(actual_feature_cols)
+            
+            # 设置所有子图的背景色、坐标轴标签，并优化可视化
+            for i in range(n_features):
+                for j in range(n_features):
+                    ax = g.axes[i, j]
+                    ax.set_facecolor(COLORS['background'])
+                    # 增强网格线以提高可读性
+                    ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
+                    
+                    # 设置坐标轴标签为特征名称（英文）
+                    if i == n_features - 1:  # 最后一行，设置x轴标签
+                        x_col = actual_feature_cols[j]
+                        if x_col.startswith('PC'):
+                            # PCA主成分，使用主要特征名称
+                            pc_idx = int(x_col.replace('PC', '')) - 1
+                            if 'pca_info_dict' in locals() and x_col in pca_info_dict:
+                                top_feat = pca_info_dict[x_col]['top_features'][0] if pca_info_dict[x_col]['top_features'] else x_col
+                                ax.set_xlabel(top_feat, fontsize=10, fontweight='bold')
+                            else:
+                                ax.set_xlabel(x_col, fontsize=10, fontweight='bold')
+                        else:
+                            # 原始特征，使用特征名称
+                            feature_name = FEATURE_NAMES.get(x_col, x_col)
+                            ax.set_xlabel(feature_name, fontsize=10, fontweight='bold')
+                    
+                    if j == 0:  # 第一列，设置y轴标签
+                        y_col = actual_feature_cols[i]
+                        if y_col.startswith('PC'):
+                            # PCA主成分，使用主要特征名称
+                            pc_idx = int(y_col.replace('PC', '')) - 1
+                            if 'pca_info_dict' in locals() and y_col in pca_info_dict:
+                                top_feat = pca_info_dict[y_col]['top_features'][0] if pca_info_dict[y_col]['top_features'] else y_col
+                                ax.set_ylabel(top_feat, fontsize=10, fontweight='bold')
+                            else:
+                                ax.set_ylabel(y_col, fontsize=10, fontweight='bold')
+                        else:
+                            # 原始特征，使用特征名称
+                            feature_name = FEATURE_NAMES.get(y_col, y_col)
+                            ax.set_ylabel(feature_name, fontsize=10, fontweight='bold')
+            
+            # 添加相关系数标注到每个散点图（只标注显著的相关性）
+            from scipy.stats import pearsonr
+            # actual_feature_cols 和 n_features 已在上面定义
+            for i in range(n_features):
+                for j in range(n_features):
+                    if i != j:  # 非对角线
+                        ax = g.axes[i, j]
+                        x_col = actual_feature_cols[j]
+                        y_col = actual_feature_cols[i]
+                        x_data = plot_df[x_col].values
+                        y_data = plot_df[y_col].values
+                        # 检查数据是否有效
+                        if len(x_data) > 0 and len(y_data) > 0 and len(x_data) == len(y_data):
+                            # 检查是否有变化（避免除以0）
+                            if np.std(x_data) > 1e-10 and np.std(y_data) > 1e-10:
+                                r, p = pearsonr(x_data, y_data)
+                                
+                                # 检查r值是否有效
+                                if not np.isnan(r) and not np.isinf(r):
+                                    # 使用实际的r值，显示真实计算结果
+                                    r_display = r
+                                    
+                                    # 只有在r值确实不为0时才在图例和图上显示（如果接近0，不显示）
+                                    if abs(r_display) > 1e-4:  # 如果r值不是接近0（阈值设为1e-4，避免显示数值误差）
+                                        # 在图例中显示r值
+                                        legend = ax.get_legend()
+                                        if legend is not None:
+                                            # 获取图例的handles和labels
+                                            try:
+                                                handles = legend.legendHandles
+                                            except AttributeError:
+                                                handles = legend.get_lines() + legend.get_patches()
+                                            labels = [t.get_text() for t in legend.get_texts()]
+                                            # 更新图例标签，添加r值
+                                            new_labels = []
+                                            for label in labels:
+                                                if label in ['Negative', 'Positive']:
+                                                    # 添加该子图的r值，保留1位小数
+                                                    new_labels.append(f"{label} (r={r_display:.1f})")
+                                                else:
+                                                    new_labels.append(label)
+                                            # 重新创建图例
+                                            ax.legend(handles, new_labels, fontsize=8, loc='best', framealpha=0.9)
+                                        
+                                        # 在图上显示r值（保留1位小数）
+                                        if abs(r_display) > 0.1 or p < 0.05:
+                                            # 显著相关性用粗体显示
+                                            ax.text(0.95, 0.95, f'r={r_display:.1f}', 
+                                                   transform=ax.transAxes,
+                                                   fontsize=10, fontweight='bold',
+                                                   ha='right', va='top',
+                                                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.95, edgecolor='gray', linewidth=1.5))
+                                        else:
+                                            # 弱相关性也显示，但用浅色
+                                            ax.text(0.95, 0.95, f'r={r_display:.1f}', 
+                                                   transform=ax.transAxes,
+                                                   fontsize=9, alpha=0.7,
+                                                   ha='right', va='top',
+                                                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='lightgray'))
+                                    # 如果r值接近0（<1e-4），不显示（不写）
+                                else:
+                                    # r值无效，显示N/A
+                                    ax.text(0.95, 0.95, 'r=N/A', 
+                                           transform=ax.transAxes,
+                                           fontsize=7, alpha=0.4,
+                                           ha='right', va='top')
+                            else:
+                                # 数据无变化，r值确实为0，不显示（不写）
+                                pass
+                        else:
+                            # 数据长度不匹配
+                            ax.text(0.95, 0.95, 'r=N/A', 
+                                   transform=ax.transAxes,
+                                   fontsize=7, alpha=0.4,
+                                   ha='right', va='top')
         
         plt.savefig(FIGURES_DIR / 'Scatterplot_Matrix.png', dpi=300, bbox_inches='tight',
                    facecolor=COLORS['background'])
@@ -389,54 +747,135 @@ try:
             
             # 按Center分组计算条件均值
             centers = sorted(feature_df['Center'].unique())
-            colors_list = [COLORS['center_0'], COLORS['center_1'], COLORS['center_2'], 
-                          COLORS['center_3'], COLORS['center_4']]
+            # 使用更深的颜色，与UMAP_2D和Scatterplot_Matrix保持一致
+            # 使用DEEPER_COLORS风格的更深颜色
+            deeper_center_colors = ['#B87A6A', '#A88B7F', '#aba09f', '#adb5bf', '#d6dadf']  # 更深的渐变色
             
-            # 绘制原始观测值（按Label分组）
-            if 'Label_Name' in feature_df.columns:
-                for label_name in ['Negative', 'Positive']:
-                    mask = (feature_df['Center'] == centers[0]) & (feature_df['Label_Name'] == label_name)
-                    if mask.sum() > 0:
-                        data = feature_df.loc[mask, feat_col]
-                        x_pos = np.random.normal(0, 0.1, len(data))
-                        color = COLORS['positive'] if label_name == 'Positive' else COLORS['negative']
-                        ax.scatter(x_pos, data, alpha=0.4, s=30, 
-                                  color=color, 
-                                  edgecolors='white', linewidths=0.5, label=label_name)
-            
-            # 绘制原始观测值（按Center分组）
+            # 绘制原始观测值（按Center分组，使用更深的颜色）
             for i, center in enumerate(centers):
                 mask = feature_df['Center'] == center
                 data = feature_df.loc[mask, feat_col]
                 x_pos = np.random.normal(i, 0.1, len(data))
-                ax.scatter(x_pos, data, alpha=0.4, s=30, 
-                          color=colors_list[i % len(colors_list)], 
-                          edgecolors='white', linewidths=0.5, label=f'Center {center}')
+                center_name = get_center_name(center)
+                # 使用更深的颜色，提高alpha和size，使其更清晰
+                ax.scatter(x_pos, data, alpha=0.8, s=50, 
+                          color=deeper_center_colors[i % len(deeper_center_colors)], 
+                          edgecolors='white', linewidths=1.0, label=center_name, zorder=5)
             
             # 绘制条件均值
             means = []
             stds = []
+            n_samples = []
+            center_data_list = []
+            
             for center in centers:
                 mask = feature_df['Center'] == center
                 data = feature_df.loc[mask, feat_col]
                 means.append(data.mean())
                 stds.append(data.std())
+                n_samples.append(len(data))
+                center_data_list.append(data.values)
             
             x_positions = np.arange(len(centers))
+            # 使用更深的颜色绘制均值线和误差棒，与UMAP_2D保持一致
+            # 使用圆形标记（'o'），确保图例中显示为圆
             ax.errorbar(x_positions, means, yerr=stds, fmt='o', 
-                       markersize=10, capsize=5, capthick=2,
-                       color=COLORS['positive'], linewidth=2.5,
-                       label='Mean ± Std', zorder=10)
+                       markersize=14, capsize=8, capthick=3.5,
+                       color='#B87A6A', linewidth=3.5,  # 使用更深的红棕色
+                       label='Mean ± Std', zorder=10, elinewidth=3.0,
+                       markerfacecolor='#B87A6A', markeredgecolor='white', markeredgewidth=2)
             
-            # 连接均值点
-            ax.plot(x_positions, means, color=COLORS['positive'], 
-                   linewidth=2, linestyle='--', alpha=0.7, zorder=9)
+            # 连接均值点（使用更深的颜色）
+            ax.plot(x_positions, means, color='#B87A6A', 
+                   linewidth=3.5, linestyle='--', alpha=0.95, zorder=9)
             
+            # 统计检验：ANOVA或Kruskal-Wallis
+            from scipy.stats import f_oneway, kruskal, shapiro
+            
+            stats_text = []
+            
+            # 统计检验：ANOVA或Kruskal-Wallis
+            from scipy.stats import f_oneway, kruskal, shapiro, normaltest
+            
+            stats_text = []
+            
+            # 检查数据是否满足ANOVA假设（正态性和方差齐性）
+            try:
+                # 检查每个组的正态性
+                all_normal = True
+                for data in center_data_list:
+                    if len(data) > 5000:
+                        _, p_norm = normaltest(data)
+                    elif len(data) >= 3:
+                        _, p_norm = shapiro(data)
+                    else:
+                        all_normal = False
+                        break
+                    if p_norm <= 0.05:
+                        all_normal = False
+                        break
+                
+                # 选择检验方法
+                if all_normal and len(centers) >= 2:
+                    # 使用ANOVA
+                    f_stat, p_val = f_oneway(*center_data_list)
+                    test_name = 'ANOVA'
+                    stat_val = f'F={f_stat:.2f}'
+                else:
+                    # 使用Kruskal-Wallis（非参数）
+                    h_stat, p_val = kruskal(*center_data_list)
+                    test_name = 'Kruskal-Wallis'
+                    stat_val = f'H={h_stat:.2f}'
+                
+                # 显著性标注
+                if p_val < 0.001:
+                    sig = '***'
+                elif p_val < 0.01:
+                    sig = '**'
+                elif p_val < 0.05:
+                    sig = '*'
+                else:
+                    sig = 'ns'
+                
+                stats_text.append(f'{test_name}: {stat_val}, p={p_val:.3f} {sig}')
+                
+                # 添加样本量信息
+                n_str = ', '.join([f'C{c}:n={n}' for c, n in zip(centers, n_samples)])
+                stats_text.append(f'({n_str})')
+                
+            except Exception as e:
+                stats_text.append(f'Statistical test failed: {str(e)[:30]}')
+            
+            # 设置x轴标签（使用中心名称）
             ax.set_xticks(x_positions)
-            ax.set_xticklabels([f'Center {c}' for c in centers], rotation=45, ha='right')
+            ax.set_xticklabels([get_center_name(c) for c in centers], 
+                             rotation=45, ha='right', fontsize=10)
+            
             ax.set_title(f'Conditional Means: {feat_col}', fontsize=12, fontweight='bold', pad=10)
             ax.set_ylabel(feat_col, fontsize=10)
-            ax.legend(fontsize=9, loc='best')
+            
+            # 图例位置优化 - 放在图中右上角，避免与x轴标签重叠
+            # 先获取y轴范围，确保图例在数据区域上方
+            y_min, y_max = ax.get_ylim()
+            y_range = y_max - y_min
+            # 调整y轴范围，为图例留出空间
+            ax.set_ylim(y_min, y_max + y_range * 0.12)
+            
+            # 创建自定义图例，确保Mean ± Std显示为圆形标记
+            handles, labels = ax.get_legend_handles_labels()
+            # 找到Mean ± Std的handle并确保它是圆形
+            for i, label in enumerate(labels):
+                if 'Mean ± Std' in label:
+                    # 创建一个新的圆形标记用于图例
+                    from matplotlib.lines import Line2D
+                    handles[i] = Line2D([0], [0], marker='o', color='w', 
+                                       markerfacecolor='#B87A6A', markersize=12,
+                                       markeredgecolor='white', markeredgewidth=2,
+                                       linestyle='--', linewidth=3.5, alpha=0.95)
+            
+            ax.legend(handles, labels, fontsize=9, loc='upper right', framealpha=0.95, 
+                     bbox_to_anchor=(0.98, 0.98), ncol=1, 
+                     edgecolor='gray', fancybox=True, shadow=False)
             ax.set_facecolor(COLORS['background'])
             ax.grid(True, alpha=0.3)
         

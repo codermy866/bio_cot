@@ -156,6 +156,34 @@ cd /data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio3.2/visualization/code
 python generate_gradcam.py
 ```
 
+---
+
+### 方法3：多时相阴道镜 + OCT体数据切片可解释性（推荐用于论文主图）
+
+该脚本专门针对你的数据形态：
+- 阴道镜：最多3张（常见为原图/醋酸后/碘染），**逐时相替换推理** + CAM叠加
+- OCT：体数据切片序列（默认20帧），**逐切片替换推理**得到关键切片曲线，并对Top切片生成CAM
+- 同时导出：**自适应门控权重**分布（按label/center）
+
+运行：
+
+```bash
+cd /data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio3.2/visualization/code
+source /data2/hmy/VLM_Caus_Rm_Mics/my_retfound/bin/activate
+python generate_multiphase_explainability.py \
+  --data_root /data2/hmy/VLM_Caus_Rm_Mics/data/5centers_multi_leave_centers_out \
+  --csv /data2/hmy/VLM_Caus_Rm_Mics/data/5centers_multi_leave_centers_out/temp_val_labels.csv \
+  --checkpoint /data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio3.2/checkpoints/best_model_v3_20260128_151636.pth \
+  --outdir /data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio3.2/visualization/figures \
+  --num_cases 12 \
+  --max_batches_stats 200
+```
+
+输出（默认）：
+- `figures/cases_multiphase_oct/*.png`：单病例panel（含OCT关键切片曲线+Top切片CAM、阴道镜三时相CAM、门控权重）
+- `figures/fusion_weights_by_label.png`
+- `figures/fusion_weights_w_oct_by_center.png`
+
 **前提条件**:
 1. ✅ 训练完成，存在checkpoint文件：
    ```

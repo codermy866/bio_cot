@@ -140,12 +140,31 @@ print("🎨 图表 1: Linear regression with marginal distributions")
 print("=" * 80)
 
 try:
-    # 选择两个特征进行回归分析
-    feature_cols_for_reg = [col for col in feature_df.columns if col not in ['Label', 'Center']][:2]
+    # 智能选择特征对：选择相关性最高的特征对
+    feature_cols_available = [col for col in feature_df.columns if col not in ['Label', 'Center', 'Label_Name']]
     
-    if len(feature_cols_for_reg) >= 2:
-        x_col = feature_cols_for_reg[0]
-        y_col = feature_cols_for_reg[1]
+    if len(feature_cols_available) >= 2:
+        # 计算所有特征对的相关性
+        from scipy.stats import pearsonr
+        max_corr = -1
+        best_pair = None
+        
+        for i, col1 in enumerate(feature_cols_available):
+            for col2 in feature_cols_available[i+1:]:
+                data1 = feature_df[col1].values
+                data2 = feature_df[col2].values
+                r, _ = pearsonr(data1, data2)
+                if abs(r) > abs(max_corr):
+                    max_corr = r
+                    best_pair = (col1, col2)
+        
+        if best_pair:
+            x_col, y_col = best_pair
+            print(f"  📊 选择特征对: {x_col} vs {y_col} (r={max_corr:.3f})")
+        else:
+            # 如果找不到，使用前两个特征
+            x_col = feature_cols_available[0]
+            y_col = feature_cols_available[1]
         
         x_data = feature_df[x_col].values
         y_data = feature_df[y_col].values

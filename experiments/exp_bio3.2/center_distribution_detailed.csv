@@ -1,0 +1,9 @@
+﻿Subset,Center,Center Code,Total (n),Positive (n₊),Negative (n₋),Positive Rate (%)
+Train (internal),Enshi（恩施）,M22105,320,102,218,31.9%
+Train (internal),Wuda（武大）,M20105,73,73,0,100.0%
+Train (internal),Xiangyang（襄阳）,M22102,276,43,233,15.6%
+Val (internal),Enshi（恩施）,M22105,84,29,55,34.5%
+Val (internal),Wuda（武大）,M20203,16,16,0,100.0%
+Val (internal),Xiangyang（襄阳）,M22102,68,10,58,14.7%
+External Test,Jingzhou（荆州）,M22101,79,28,51,35.4%
+External Test,Shiyan（十堰）,M22104,69,21,48,30.4%
