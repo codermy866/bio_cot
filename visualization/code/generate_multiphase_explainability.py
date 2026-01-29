@@ -307,7 +307,8 @@ def plot_case_figure(
         oct_tensor = oct_images_1[0, t]  # [3,224,224]
         oct_img = tensor_to_image(oct_tensor.unsqueeze(0))  # reuse helper expects batch-ish
         cam_2d = cams["oct_cam_2d_by_slice"][t]
-        overlay = overlay_cam_on_image(oct_img, cam_2d, alpha=0.6, threshold=0.2)
+        # 使用更高阈值，只保留最重要的激活区域，增强病灶对比度
+        overlay = overlay_cam_on_image(oct_img, cam_2d, alpha=0.5, threshold=0.6)
         ax = fig.add_subplot(gs[1, j * 2 : (j + 1) * 2])
         ax.imshow(overlay)
         ax.set_title(f"OCT slice {t} (p={slice_probs[t]:.3f})")
@@ -324,7 +325,7 @@ def plot_case_figure(
         col_tensor = colpo_images_1[0, i]  # [3,224,224]
         col_img = tensor_to_image(col_tensor.unsqueeze(0))
         cam_2d = cams["colpo_cam_2d_by_phase"][i]
-        overlay = overlay_cam_on_image(col_img, cam_2d, alpha=0.6, threshold=0.2)
+        overlay = overlay_cam_on_image(col_img, cam_2d, alpha=0.5, threshold=0.6)
         ax = fig.add_subplot(gs[2, i * 2 : (i + 1) * 2])
         ax.imshow(overlay)
         ax.set_title(f"Colpo phase {i+1} (p={phase_probs[i]:.3f})")
@@ -481,41 +482,50 @@ def main():
         image_names = batch.get("image_names", batch.get("image_name", "unknown.jpg"))
         image_names = _ensure_list(image_names, 1)
 
-        # --- collect gating stats (cheap: use mean features) ---
+        # --- mean features (same as训练) + 一次前向（供门控统计 & 样本筛选） ---
+        F = oct_images.shape[1]
+        oct_feats_mean = extract_patch_features_with_vit(
+            oct_images.view(F, *oct_images.shape[2:]),
+            device,
+            batch_size=max(4, int(config.vit_batch_size // 2)),
+        ).mean(dim=0, keepdim=True)
+
+        N = colpo_images.shape[1]
+        colpo_feats_mean = extract_patch_features_with_vit(
+            colpo_images.view(N, *colpo_images.shape[2:]),
+            device,
+            batch_size=max(4, int(config.vit_batch_size // 2)),
+        ).mean(dim=0, keepdim=True)
+
+        logits_mean, out_mean = _forward_logits(
+            model=model,
+            f_oct=oct_feats_mean,
+            f_colpo=colpo_feats_mean,
+            image_names=image_names,
+            clinical_features=clinical_features,
+            center_labels=batch.get("center_idx", None).to(device) if "center_idx" in batch else None,
+            clinical_info=None,
+        )
+        prob_pos = torch.softmax(logits_mean, dim=1)[0, 1].item()
+        pred_label = int(torch.argmax(logits_mean, dim=1)[0].item())
+
+        # --- collect gating stats (只用一次前向的结果) ---
         if batch_idx < args.max_batches_stats:
-            # mean features (same as training)
-            F = oct_images.shape[1]
-            oct_feats = extract_patch_features_with_vit(
-                oct_images.view(F, *oct_images.shape[2:]),
-                device,
-                batch_size=max(4, int(config.vit_batch_size // 2)),
-            ).mean(dim=0, keepdim=True)
-
-            N = colpo_images.shape[1]
-            colpo_feats = extract_patch_features_with_vit(
-                colpo_images.view(N, *colpo_images.shape[2:]),
-                device,
-                batch_size=max(4, int(config.vit_batch_size // 2)),
-            ).mean(dim=0, keepdim=True)
-
-            logits, out = _forward_logits(
-                model=model,
-                f_oct=oct_feats,
-                f_colpo=colpo_feats,
-                image_names=image_names,
-                clinical_features=clinical_features,
-                center_labels=batch.get("center_idx", None).to(device) if "center_idx" in batch else None,
-                clinical_info=None,
-            )
-            fw = out.get("fusion_weights", {})
+            fw = out_mean.get("fusion_weights", {})
             w_oct = float(fw.get("oct", torch.tensor([[np.nan]])).view(-1)[0].item())
             w_colpo = float(fw.get("colpo", torch.tensor([[np.nan]])).view(-1)[0].item())
             gating_records.append(
                 {"label": label, "center_idx": center_idx, "w_oct": w_oct, "w_colpo": w_colpo}
             )
 
+        # --- 样本筛选：只保留“预测正确且置信度高”的病例用于可视化 ---
+        is_correct = (pred_label == label)
+        is_confident_pos = (label == 1 and prob_pos >= 0.8)
+        is_confident_neg = (label == 0 and prob_pos <= 0.2)
+        is_good_case = is_correct and (is_confident_pos or is_confident_neg)
+
         # --- generate case panels ---
-        if cases_done < args.num_cases:
+        if cases_done < args.num_cases and is_good_case:
             # Per-slice importance + caches
             oct_info = compute_oct_slice_importance(
                 model=model,
@@ -537,6 +547,9 @@ def main():
                 device=device,
                 vit_batch_size=max(4, int(config.vit_batch_size // 2)),
             )
+
+            # baseline_out 改为复用 mean-feature 的前向结果，避免重复计算
+            oct_info["baseline_out"] = out_mean
 
             # CAMs for each OCT slice (only compute 2D grid, cheap)
             F = oct_images.shape[1]
