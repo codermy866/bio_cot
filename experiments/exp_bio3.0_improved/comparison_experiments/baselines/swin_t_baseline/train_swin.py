@@ -107,12 +107,21 @@ def train_single_run(config, device, seed, run_id, output_dir):
         knowledge_embed_path=knowledge_embed_path  # 添加Knowledge Note Embeddings路径
     )
     
-    # 加权采样
-    train_labels = [train_dataset[i]['label'].item() for i in range(len(train_dataset))]
+    # 加权采样 - 直接从CSV读取标签，避免遍历数据集（更快）
+    print("正在准备加权采样器...")
+    train_df = pd.read_csv(train_csv)
+    if 'label' in train_df.columns:
+        train_labels = train_df['label'].values
+    else:
+        # 如果没有label列，从数据集读取（较慢）
+        print("⚠️  CSV中没有label列，从数据集读取标签（可能较慢）...")
+        train_labels = [train_dataset[i]['label'].item() for i in range(len(train_dataset))]
+    
     class_counts = pd.Series(train_labels).value_counts().sort_index()
     class_weights = 1.0 / class_counts
     sample_weights = [class_weights[label] for label in train_labels]
     sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
+    print(f"✅ 加权采样器准备完成 (类别分布: {dict(class_counts)})")
     
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, sampler=sampler, num_workers=4, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=4, pin_memory=True)

@@ -970,7 +970,9 @@ def generate_cam_visualizations(
         
         # 3. OCT纯热图
         ax3 = fig.add_subplot(gs[idx, 2])
-        im = ax3.imshow(oct_cam, cmap='RdYlBu_r', vmin=0, vmax=1)
+        # 使用 'hot' colormap：黑色(低激活) -> 红色 -> 黄色 -> 白色(高激活)
+        # 这样高激活区域显示为红色/黄色，符合医学图像可视化习惯
+        im = ax3.imshow(oct_cam, cmap='hot', vmin=0, vmax=1)
         ax3.set_title('OCT CAM Heatmap', fontsize=11, fontweight='bold')
         ax3.axis('off')
         plt.colorbar(im, ax=ax3, fraction=0.046, pad=0.04)
@@ -1019,7 +1021,10 @@ def generate_cam_visualizations(
         
         # 6. Colposcopy纯热图
         ax6 = fig.add_subplot(gs[idx, 5])
-        im = ax6.imshow(colpo_cam, cmap='RdYlBu_r', vmin=0, vmax=1)
+        # 使用 'hot' colormap：黑色(低激活) -> 红色 -> 黄色 -> 白色(高激活)
+        # 这样高激活区域显示为红色/黄色，符合医学图像可视化习惯
+        # 红色代表重点关注区域（病灶），与第四行和第五行的叠加图保持一致
+        im = ax6.imshow(colpo_cam, cmap='hot', vmin=0, vmax=1)
         ax6.set_title('Colpo CAM Heatmap', fontsize=11, fontweight='bold')
         ax6.axis('off')
         plt.colorbar(im, ax=ax6, fraction=0.046, pad=0.04)
@@ -1032,8 +1037,12 @@ def generate_cam_visualizations(
     plt.savefig(save_path, format='pdf', dpi=300, bbox_inches='tight')
     save_path_png = Path(save_dir) / 'CAM_Activation_Analysis_LayerCAM.png'
     plt.savefig(save_path_png, format='png', dpi=300, bbox_inches='tight')
+    # 同时保存为Optimized版本（红色高激活）
+    save_path_optimized = Path(save_dir) / 'CAM_Activation_Analysis_BioCot_Optimized.png'
+    plt.savefig(save_path_optimized, format='png', dpi=300, bbox_inches='tight')
     
     print(f"✅ Bio-COT LayerCAM visualization saved: {save_path}")
+    print(f"✅ Bio-COT Optimized (red activation) saved: {save_path_optimized}")
     
     plt.close()
 
