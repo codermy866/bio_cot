@@ -20,27 +20,112 @@ import json
 from datetime import datetime
 import time
 
-# 添加项目路径（使用与 train_cnn.py 完全相同的方式）
-ROOT = Path(__file__).resolve().parents[5]
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+# 添加项目路径
+# train_swin.py 在: experiments/exp_bio3.0_improved/comparison_experiments/baselines/swin_t_baseline/
+# parents[0] = swin_t_baseline
+# parents[1] = baselines  
+# parents[2] = comparison_experiments
+# parents[3] = exp_bio3.0_improved  <- 这是我们要的
+# parents[4] = experiments
+# parents[5] = VLM_Caus_Rm_Mics  <- 项目根目录
+ROOT = Path(__file__).resolve().parents[5]  # 到项目根目录 VLM_Caus_Rm_Mics
+EXP_ROOT = Path(__file__).resolve().parents[3]  # 到 exp_bio3.0_improved (修正：应该是3，不是4)
 
-from data.dataset_v3 import FiveCentersMultimodalDatasetV3
-from torchvision import transforms
-from utils.experiment_manager import ExperimentConfig, ExperimentResult
+# 确保路径存在
+if not ROOT.exists() or not (ROOT / 'experiments').exists():
+    # 如果相对路径计算失败，使用绝对路径
+    ROOT = Path('/data2/hmy/VLM_Caus_Rm_Mics')
+if not EXP_ROOT.exists() or not (EXP_ROOT / 'data').exists():
+    EXP_ROOT = Path('/data2/hmy/VLM_Caus_Rm_Mics/experiments/exp_bio3.0_improved')
 
-# 导入Swin-T模型
+# 添加路径（顺序很重要：先添加 EXP_ROOT，这样 data 和 utils 可以优先被找到）
+sys.path.insert(0, str(EXP_ROOT))  # 添加 exp_bio3.0_improved 到路径（用于导入 data, utils）
+sys.path.insert(0, str(ROOT))  # 添加项目根目录到路径（用于导入 src.models）
+
+# 添加 0124_Trash 路径以导入 SwinT 模型
+TRASH_SRC = ROOT / '0124_Trash' / 'src'
+if TRASH_SRC.exists():
+    sys.path.insert(0, str(TRASH_SRC))
+
+# 导入数据模块 - 使用直接文件导入方式，避免模块路径问题
 try:
-    from src.models.backbones.swin_encoder import SwinTMultimodalTransformer
+    from data.dataset_v3 import FiveCentersMultimodalDatasetV3
+except ImportError:
+    # 如果标准导入失败，使用直接文件导入
+    import importlib.util
+    dataset_v3_path = EXP_ROOT / 'data' / 'dataset_v3.py'
+    if dataset_v3_path.exists():
+        spec = importlib.util.spec_from_file_location('dataset_v3', str(dataset_v3_path))
+        dataset_v3_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(dataset_v3_module)
+        FiveCentersMultimodalDatasetV3 = dataset_v3_module.FiveCentersMultimodalDatasetV3
+    else:
+        raise ImportError(f"无法找到 dataset_v3.py: {dataset_v3_path}")
+
+from torchvision import transforms
+
+# 导入工具模块 - 使用直接文件导入方式
+try:
+    from utils.experiment_manager import ExperimentConfig, ExperimentResult
+except ImportError:
+    # 如果标准导入失败，使用直接文件导入
+    import importlib.util
+    utils_path = EXP_ROOT / 'utils' / 'experiment_manager.py'
+    if utils_path.exists():
+        spec = importlib.util.spec_from_file_location('experiment_manager', str(utils_path))
+        utils_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(utils_module)
+        ExperimentConfig = utils_module.ExperimentConfig
+        ExperimentResult = utils_module.ExperimentResult
+    else:
+        raise ImportError(f"无法找到 experiment_manager.py: {utils_path}")
+
+# 导入Swin-T模型 - 需要先设置好所有依赖路径
+import importlib.util
+
+# 确保 0124_Trash/src 在 sys.path 的最前面，这样相对导入才能工作
+TRASH_SRC = ROOT / '0124_Trash' / 'src'
+if TRASH_SRC.exists() and str(TRASH_SRC) not in sys.path[:3]:
+    # 插入到最前面，确保优先查找
+    sys.path.insert(0, str(TRASH_SRC))
+
+try:
+    # 首先尝试从 0124_Trash 导入（需要确保路径正确）
+    from models.backbones.swin_encoder import SwinTMultimodalTransformer
 except ImportError as e1:
     try:
-        from models.backbones.swin_encoder import SwinTMultimodalTransformer
-    except ImportError as e2:
+        # 尝试直接文件导入，并手动处理依赖
+        swin_path = TRASH_SRC / 'models' / 'backbones' / 'swin_encoder.py'
+        swin_image_path = TRASH_SRC / 'models' / 'backbones' / 'swin_image_encoder.py'
+        cnn_encoder_path = TRASH_SRC / 'models' / 'backbones' / 'cnn_encoder.py'
+        
+        if swin_path.exists() and swin_image_path.exists() and cnn_encoder_path.exists():
+            # 先导入依赖模块
+            swin_image_spec = importlib.util.spec_from_file_location("swin_image_encoder", str(swin_image_path))
+            swin_image_module = importlib.util.module_from_spec(swin_image_spec)
+            sys.modules['models.backbones.swin_image_encoder'] = swin_image_module
+            swin_image_spec.loader.exec_module(swin_image_module)
+            
+            cnn_spec = importlib.util.spec_from_file_location("cnn_encoder", str(cnn_encoder_path))
+            cnn_module = importlib.util.module_from_spec(cnn_spec)
+            sys.modules['models.backbones.cnn_encoder'] = cnn_module
+            cnn_spec.loader.exec_module(cnn_module)
+            
+            # 然后导入主模块
+            swin_spec = importlib.util.spec_from_file_location("swin_encoder", str(swin_path))
+            swin_module = importlib.util.module_from_spec(swin_spec)
+            sys.modules['models.backbones.swin_encoder'] = swin_module
+            swin_spec.loader.exec_module(swin_module)
+            SwinTMultimodalTransformer = swin_module.SwinTMultimodalTransformer
+        else:
+            raise ImportError(f"找不到必要的文件: swin_path={swin_path.exists()}, swin_image={swin_image_path.exists()}, cnn={cnn_encoder_path.exists()}")
+    except Exception as e2:
         print(f"❌ 无法导入 SwinTMultimodalTransformer")
-        print(f"   错误1 (src.models.backbones.swin_encoder): {e1}")
-        print(f"   错误2 (models.backbones.swin_encoder): {e2}")
+        print(f"   错误1 (models.backbones.swin_encoder): {e1}")
+        print(f"   错误2 (直接文件导入): {e2}")
         print(f"   ROOT: {ROOT}")
         print(f"   EXP_ROOT: {EXP_ROOT}")
+        print(f"   TRASH_SRC: {TRASH_SRC}")
         raise ImportError(f"无法找到 SwinTMultimodalTransformer 类")
 
 
@@ -287,7 +372,7 @@ def main():
                        help='运行次数')
     parser.add_argument('--output_dir', type=str, default='comparison_experiments/results',
                        help='输出目录')
-    parser.add_argument('--batch_size', type=int, default=32,
+    parser.add_argument('--batch_size', type=int, default=16,  # 减小batch size以避免OOM
                        help='Batch size')
     parser.add_argument('--num_epochs', type=int, default=100,
                        help='训练轮数')
@@ -314,7 +399,14 @@ def main():
         data_root=args.data_root
     )
     
-    device = torch.device('cuda:1' if torch.cuda.is_available() and torch.cuda.device_count() > 1 else 'cuda:0' if torch.cuda.is_available() else 'cpu')
+    # 优先使用 GPU 1，如果不可用则使用 GPU 0
+    if torch.cuda.is_available():
+        if torch.cuda.device_count() > 1:
+            device = torch.device('cuda:1')  # 强制使用 GPU 1
+        else:
+            device = torch.device('cuda:0')
+    else:
+        device = torch.device('cpu')
     print(f"使用设备: {device}")
     if torch.cuda.is_available():
         print(f"GPU名称: {torch.cuda.get_device_name(device.index if hasattr(device, 'index') else 1)}")
