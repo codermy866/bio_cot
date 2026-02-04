@@ -62,6 +62,21 @@ echo ""
 echo "✅ Attention Map 可视化完成！"
 echo ""
 
+# 生成病灶聚焦 Grad-CAM 可视化
+echo "=========================================="
+echo "3. 生成病灶聚焦 Grad-CAM 可视化"
+echo "=========================================="
+python generate_lesion_focused_gradcam.py \
+    --checkpoint "$LATEST_CHECKPOINT" \
+    --num_samples 4 \
+    --threshold 0.6 \
+    --smooth_sigma 1.0 \
+    --save_dir lesion_focused_results
+
+echo ""
+echo "✅ 病灶聚焦 Grad-CAM 可视化完成！"
+echo ""
+
 echo "=========================================="
 echo "🎉 所有可视化生成完成！"
 echo "=========================================="
@@ -69,5 +84,6 @@ echo ""
 echo "📁 输出目录："
 echo "   - Grad-CAM: gradcam_results/"
 echo "   - Attention Map: attention_results/"
+echo "   - 病灶聚焦 Grad-CAM: lesion_focused_results/"
 echo ""
 
