@@ -1,9 +1,10 @@
 # BioLCoT 可视化工具
 
-本目录包含两个专门针对 BioLCoT 架构的可视化脚本：
+本目录包含三个专门针对 BioLCoT 架构的可视化脚本：
 
 1. **Grad-CAM (类激活映射)**: 展示模型在做最终决定时，主要关注图像的哪些区域
 2. **Attention Map (注意力图)**: 展示 Visual Notes 模块关注了哪些区域，证明 CoT 机制的有效性
+3. **病灶聚焦 Grad-CAM**: 只标注重点病灶区域，去除背景噪声，适合发表级可视化
 
 ## 环境设置
 
@@ -67,7 +68,83 @@ python generate_gradcam.py \
 - `gradcam_oct_sample{N}_{Positive/Negative}.png`: OCT 图像的 Grad-CAM 叠加图
 - `gradcam_colpo_sample{N}_{Positive/Negative}.png`: Colposcopy 图像的 Grad-CAM 叠加图
 
-### 方法二：生成 Attention Map
+### 方法二：生成病灶聚焦 Grad-CAM（推荐用于发表）
+
+病灶聚焦 Grad-CAM 专门用于"只标注重点病灶区域"，去除背景噪声，生成发表级可视化。
+
+```bash
+# 自动查找最新 checkpoint（推荐）
+python generate_lesion_focused_gradcam.py --num_samples 4
+
+# 或者手动指定 checkpoint 和参数
+python generate_lesion_focused_gradcam.py \
+    --checkpoint ../checkpoints/best_model_v3_20260128_180853.pth \
+    --num_samples 4 \
+    --threshold 0.6 \
+    --smooth_sigma 1.0 \
+    --save_dir lesion_focused_results
+```
+
+**参数说明：**
+- `--checkpoint`: 模型 checkpoint 路径（默认: **自动查找最新的 best_model_*.pth**）
+- `--num_samples`: 生成的样本数量（默认: 4）
+- `--target_layer`: 目标层名称（默认: 自动查找）
+- `--threshold`: 阈值过滤参数 (0.0-1.0)，表示百分位数（默认: 0.6）
+  - **使用百分位数阈值**：0.6 表示保留 top 40% 的激活区域（更智能，推荐）
+  - 0.5 = 保留 top 50%（较宽松）
+  - 0.6 = 保留 top 40%（推荐）
+  - 0.7 = 保留 top 30%（较严格）
+  - 0.8 = 保留 top 20%（很严格，只显示最显著病灶）
+- `--smooth_sigma`: 高斯平滑参数，用于让边缘更自然（默认: 1.0）
+  - 0.5-2.0 推荐，值越大边缘越平滑
+- `--use_absolute_threshold`: 使用绝对阈值而不是百分位数（不推荐，除非百分位数效果不好）
+- `--save_dir`: 保存目录（默认: `lesion_focused_results`）
+
+**输出：**
+- `original_oct_sample{N}_{Positive/Negative}.png/.pdf`: **原始 OCT 图像**（没有任何操作，用于论文对比）
+- `original_colpo_sample{N}_{Positive/Negative}.png/.pdf`: **原始 Colposcopy 图像**（没有任何操作，用于论文对比）
+- `raw_oct_sample{N}_{Positive/Negative}.png/.pdf`: OCT 原始 Grad-CAM 版本（用于对比）
+- `raw_colpo_sample{N}_{Positive/Negative}.png/.pdf`: Colposcopy 原始 Grad-CAM 版本（用于对比）
+- `lesion_focused_oct_sample{N}_{Positive/Negative}.png/.pdf`: OCT 病灶聚焦叠加图（**推荐用于发表**）
+- `lesion_focused_colpo_sample{N}_{Positive/Negative}.png/.pdf`: Colposcopy 病灶聚焦叠加图（**推荐用于发表**）
+
+**注意**：所有图片都会同时生成 PNG 和 PDF 格式，PDF 格式更清晰，适合论文使用。
+
+**调试信息：**
+脚本会输出详细的统计信息，包括：
+- 原始 CAM 和聚焦后 CAM 的统计（Min, Max, Mean）
+- 百分位数阈值和激活像素数
+- 变化量和变化像素数
+- 如果过滤效果不明显，会给出警告和建议
+
+**输出：**
+- `lesion_focused_oct_sample{N}_{Positive/Negative}.png`: OCT 病灶聚焦叠加图
+- `lesion_focused_colpo_sample{N}_{Positive/Negative}.png`: Colposcopy 病灶聚焦叠加图
+
+**关键特性：**
+- **百分位数阈值过滤**：使用百分位数阈值（默认保留 top 40%），自动适应不同图像的激活分布，比固定阈值更智能
+- **形态学处理**：高斯平滑，使病灶区域更集中、边缘更自然
+- **智能背景遮罩**：OCT 背景自动去除，Colposcopy 保持原图清晰度
+- **Colposcopy 颜色先验增强（关键）**：自动检测红色/糜烂区域（宫颈口流血），结合颜色特征与 Grad-CAM 激活，大幅增强病灶区域的显示
+  - 使用 HSV 颜色空间检测红色/粉色区域
+  - 结合中心加权（宫颈口通常在中心）
+  - 去除反光区域（窥器反光）
+  - 即使模型在红色区域激活较弱，也会基于颜色特征给予增强
+- **详细调试信息**：输出统计信息，帮助理解过滤效果
+
+**如果看不到明显变化：**
+1. 检查控制台输出的统计信息，查看"激活区域减少"百分比
+2. 如果减少 < 10%，说明阈值设置太宽松，尝试：
+   ```bash
+   python generate_lesion_focused_gradcam.py --threshold 0.7 --num_samples 4
+   ```
+3. 如果减少 > 90%，说明阈值太严格，尝试：
+   ```bash
+   python generate_lesion_focused_gradcam.py --threshold 0.5 --num_samples 4
+   ```
+4. 对比生成的 `raw_*.png` 和 `lesion_focused_*.png` 文件，查看差异
+
+### 方法三：生成 Attention Map
 
 Attention Map 用于展示 Visual Notes 模块的注意力权重，证明 CoT 机制的有效性。
 

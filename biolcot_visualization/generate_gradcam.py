@@ -224,8 +224,29 @@ def generate_gradcam(
     # 前向传播
     logits = wrapped_model(f_oct, f_colpo, image_names, clinical_features)
     
+    # 🔥 关键修复：使用类间差异作为目标，而不是单个类别的 logit
+    # 原因：对于阳性病例，如果模型预测概率很低（logits[0, 1] 很小），
+    # 直接使用 logits[0, 1] 会导致梯度很小，CAM 不明显。
+    # 使用 logits[0, 1] - logits[0, 0] 可以确保只要有类间差异就能产生梯度。
+    
+    # 方法1：使用类间差异（推荐，最稳健）
+    if target_class == 1:
+        # 阳性：使用 logits[1] - logits[0]，即使预测概率低，只要有差异就能产生梯度
+        score = logits[0, 1] - logits[0, 0]
+        print(f"  📊 使用类间差异: logits[1] - logits[0] = {logits[0, 1].item():.4f} - {logits[0, 0].item():.4f} = {score.item():.4f}")
+    else:
+        # 阴性：使用 logits[0] - logits[1]，同样使用类间差异
+        score = logits[0, 0] - logits[0, 1]
+        print(f"  📊 使用类间差异: logits[0] - logits[1] = {logits[0, 0].item():.4f} - {logits[0, 1].item():.4f} = {score.item():.4f}")
+    
+    # 如果类间差异太小（接近0），给出警告并尝试使用 softmax 概率
+    if abs(score.item()) < 0.1:
+        print(f"  ⚠️  警告：类间差异很小 ({score.item():.4f})，尝试使用 softmax 概率")
+        probs = torch.softmax(logits, dim=1)
+        score = probs[0, target_class]
+        print(f"  📊 改用 softmax 概率: prob[{target_class}] = {score.item():.4f}")
+    
     # 反向传播
-    score = logits[0, target_class]
     score.backward()
     
     # 获取梯度（从输入特征获取）
@@ -236,13 +257,40 @@ def generate_gradcam(
         gradients = f_colpo.grad  # [B, N, D]
         activations = f_colpo.detach()  # [B, N, D]
     
+    # 🔥 检查梯度是否为零或太小
+    grad_norm = torch.norm(gradients).item()
+    print(f"  📊 梯度范数: {grad_norm:.6f}")
+    
+    # 对通道维度求平均激活（先计算，用于后续的 Self-Attention CAM）
+    activations_mean = torch.mean(activations, dim=2)  # [B, N]
+    
     # 7. 计算 CAM (简化版 LayerCAM)
     # 对通道维度求平均梯度
     weights = torch.mean(gradients, dim=2, keepdim=True)  # [B, N, 1]
-    weights = torch.relu(weights)  # 只保留正向梯度
     
-    # 对通道维度求平均激活
-    activations_mean = torch.mean(activations, dim=2)  # [B, N]
+    # 🔥 关键修复：如果梯度接近零，使用激活值本身作为权重（Self-Attention CAM）
+    if grad_norm < 1e-5:
+        print(f"  ⚠️  警告：梯度接近零 ({grad_norm:.6f})！使用激活值本身作为权重（Self-Attention CAM）")
+        print(f"  💡 这通常发生在特征已经收敛或模型对样本置信度很低时")
+        # 使用激活值的绝对值作为权重（激活值越大，重要性越高）
+        weights = torch.abs(activations_mean.unsqueeze(-1))  # [B, N, 1]
+        # 重新归一化
+        weights_max = weights.max()
+        if weights_max > 0:
+            weights = weights / (weights_max + 1e-8)
+        print(f"  📊 使用激活值权重: Min={weights.min().item():.6f}, Max={weights.max().item():.6f}, Mean={weights.mean().item():.6f}")
+    else:
+        # 🔥 关键修复：对于类间差异，梯度可能是负的（这是正常的）
+        # 我们需要使用梯度的绝对值，或者根据目标类别调整符号
+        # 使用绝对值确保所有梯度都贡献，无论方向如何
+        weights = torch.abs(weights)  # 使用绝对值，确保所有梯度都贡献
+        
+        # 重新归一化权重，确保最大值不为零
+        weights_max = weights.max()
+        if weights_max > 0:
+            weights = weights / (weights_max + 1e-8)
+        
+        print(f"  📊 梯度权重统计: Min={weights.min().item():.6f}, Max={weights.max().item():.6f}, Mean={weights.mean().item():.6f}")
     
     # 加权求和
     cam = (weights.squeeze(-1) * activations_mean).squeeze(0)  # [N]
@@ -354,39 +402,62 @@ def fix_color_and_overlay(image_path_or_array, heatmap, save_path, is_oct=False,
     if is_oct:
         # 转灰度图分析结构
         gray_img = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        h, w = gray_img.shape
         
-        # A. 提高阈值：过滤掉深黑色的背景和较暗的保护套伪影
-        # 经验值设为 30，比之前的 15 更激进，确保去除背景噪声
-        _, binary_mask = cv2.threshold(gray_img, 30, 1.0, cv2.THRESH_BINARY)
+        # A. 使用更宽松的阈值：只去除纯黑背景，保留所有组织区域
+        # 降低阈值到 15，避免过度去除底部组织
+        _, binary_mask = cv2.threshold(gray_img, 15, 1.0, cv2.THRESH_BINARY)
         
-        # B. 强力形态学操作：去除细小的噪点和非连通的"冰柱"干扰
-        kernel = np.ones((5, 5), np.uint8)
-        # 开运算：先腐蚀后膨胀，断开细小连接，消除噪点
-        binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel, iterations=2)
+        # B. 轻度形态学操作：只去除非常小的噪点，不要过度处理
+        kernel = np.ones((3, 3), np.uint8)  # 使用更小的核
+        # 开运算：先腐蚀后膨胀，去除小噪点（只迭代1次，避免过度处理）
+        binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel, iterations=1)
         
-        # C. 连通域分析：只保留最大的组织块
-        # OCT图像中，真正的组织（下半部分）通常是最大的连通区域
+        # C. 使用闭运算填补间隙，避免分割线
+        # 闭运算：先膨胀后腐蚀，填补小间隙，连接断开的组织
+        binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+        
+        # D. 连通域分析：保留所有较大的组织块（避免底部组织被误删）
         mask_u8 = (binary_mask * 255).astype(np.uint8)
         contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         if contours:
-            # 找到面积最大的轮廓（即组织本体）
-            max_cnt = max(contours, key=cv2.contourArea)
-            # 创建一个新的纯净mask，只保留这个最大块
+            # 计算所有轮廓的面积
+            contour_areas = [cv2.contourArea(cnt) for cnt in contours]
+            max_area = max(contour_areas) if contour_areas else 0
+            
+            # 使用更宽松的阈值：保留所有面积 >= 最大面积 10% 的轮廓
+            # 这样可以保留更多底部组织，避免误删
             clean_mask = np.zeros_like(mask_u8)
-            cv2.drawContours(clean_mask, [max_cnt], -1, 255, thickness=cv2.FILLED)
+            kept_contours = []
+            for cnt, area in zip(contours, contour_areas):
+                if area >= max_area * 0.1:  # 降低到 10%，保留更多组织
+                    cv2.drawContours(clean_mask, [cnt], -1, 255, thickness=cv2.FILLED)
+                    kept_contours.append(area)
+            
             binary_mask = clean_mask.astype(np.float32) / 255.0
+            print(f"  📊 OCT: 保留 {len(kept_contours)} 个组织块 (面积 >= 最大块的 10%)")
+        else:
+            # 如果没有找到轮廓，使用原始二值掩码（避免全黑）
+            binary_mask = binary_mask.astype(np.float32)
+            print(f"  ⚠️  OCT: 未找到轮廓，使用原始二值掩码")
         
-        # D. 强制抑制顶部区域 (Heuristic)
-        # 即使分割有误，强制将图片顶部 10% 区域（通常是空气/探头）置零
-        h, w = binary_mask.shape
-        binary_mask[0:int(h*0.1), :] = 0
+        # E. 强制抑制顶部区域（只去除顶部，不要动底部）
+        # 只去除顶部 20% 区域（保护套），底部完全保留
+        top_margin = int(h * 0.20)
+        binary_mask[0:top_margin, :] = 0
+        print(f"  🔲 OCT: 强制去除顶部 {top_margin} 像素 (顶部 20%)")
         
-        # E. 应用掩膜：背景区域热力值强行归零
+        # F. 再次使用闭运算，确保去除顶部后没有分割线
+        binary_mask_u8 = (binary_mask * 255).astype(np.uint8)
+        binary_mask_u8 = cv2.morphologyEx(binary_mask_u8, cv2.MORPH_CLOSE, kernel, iterations=1)
+        binary_mask = binary_mask_u8.astype(np.float32) / 255.0
+        
+        # G. 应用掩膜：背景区域热力值强行归零
         heatmap = heatmap * binary_mask
         mask = binary_mask
 
-        # F. 重新归一化 (Re-normalization)
+        # H. 重新归一化 (Re-normalization)
         # 去掉背景的高亮噪声后，重新拉伸对比度，让病灶显红
         if np.max(heatmap) > 0:
             heatmap = heatmap / np.max(heatmap)
@@ -395,6 +466,7 @@ def fix_color_and_overlay(image_path_or_array, heatmap, save_path, is_oct=False,
     # 4. 生成美观的叠加图
     # ---------------------------------------------------------
     # 将热力图转换为 RGB 伪彩色 (使用 JET 色谱: 蓝-青-黄-红)
+    # 注意：对于 Colposcopy，边缘遮罩会在后面应用，所以这里先转换
     heatmap_uint8 = np.uint8(255 * heatmap)
     heatmap_colored_bgr = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
     
@@ -421,9 +493,56 @@ def fix_color_and_overlay(image_path_or_array, heatmap, save_path, is_oct=False,
         # 热力图值低的地方（正常肉色），完全透明，显示原图。
         # 这样彻底解决了"整张图套紫色滤镜"的问题。
         
-        # 计算每个像素的融合权重，基于heatmap的强度
+        # 🔥 关键修复：自适应椭圆ROI遮罩（根据激活分布自动确定椭圆参数）
+        # 宫颈口位置和大小会根据热力图激活分布和图像特征自动调整
+        h_colpo, w_colpo = heatmap.shape
+        
+        # 获取图像数组（如果提供了）
+        img_rgb_for_roi = None
+        if isinstance(image_path_or_array, np.ndarray):
+            img_rgb_for_roi = image_path_or_array
+        elif isinstance(image_path_or_array, str):
+            img_bgr = cv2.imread(image_path_or_array)
+            if img_bgr is not None:
+                img_rgb_for_roi = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        
+        # 使用自适应椭圆ROI检测
+        from adaptive_ellipse_roi import detect_adaptive_ellipse_roi
+        center_roi_mask, ellipse_params = detect_adaptive_ellipse_roi(
+            heatmap,
+            image_rgb=img_rgb_for_roi,
+            min_activation_threshold=0.1,
+            min_roi_ratio=0.15,  # 最小ROI比例15%
+            max_roi_ratio=0.45   # 最大ROI比例45%
+        )
+        
+        # 应用中心ROI遮罩：只保留宫颈口中心区域
+        heatmap_masked = heatmap * center_roi_mask
+        
+        # 打印统计信息
+        roi_pixels = np.sum(center_roi_mask > 0.5)
+        total_pixels = h_colpo * w_colpo
+        center_y, center_x = ellipse_params['center']
+        axis_a, axis_b = ellipse_params['axes']
+        angle = ellipse_params['angle']
+        print(f"  🔴 Colposcopy: 自适应椭圆ROI - 保留 {roi_pixels}/{total_pixels} 像素 ({roi_pixels/total_pixels*100:.1f}%)")
+        print(f"  📍 椭圆中心: ({center_y}, {center_x}), 长轴: {axis_a:.0f}px, 短轴: {axis_b:.0f}px, 角度: {angle:.1f}°")
+        
+        # 重新归一化
+        if heatmap_masked.max() > 0:
+            heatmap_masked = heatmap_masked / heatmap_masked.max()
+        else:
+            heatmap_masked = heatmap
+        
+        # 重新生成伪彩色图（应用边缘遮罩后）
+        heatmap_masked_uint8 = np.uint8(255 * heatmap_masked)
+        heatmap_colored_bgr_masked = cv2.applyColorMap(heatmap_masked_uint8, cv2.COLORMAP_JET)
+        heatmap_colored_rgb_masked = cv2.cvtColor(heatmap_colored_bgr_masked, cv2.COLOR_BGR2RGB)
+        heatmap_colored_float = np.float32(heatmap_colored_rgb_masked) / 255.0
+        
+        # 计算每个像素的融合权重，基于masked heatmap的强度
         # heatmap值越大，权重越大，显示越红
-        weight = np.stack([heatmap]*3, axis=2)
+        weight = np.stack([heatmap_masked]*3, axis=2)
         
         # 对权重做指数增强，过滤掉低关注度的蓝色背景噪声
         # power > 1 会压制低值，突出高值
@@ -437,15 +556,25 @@ def fix_color_and_overlay(image_path_or_array, heatmap, save_path, is_oct=False,
     final_result = np.clip(final_result, 0, 1)
     
     # ---------------------------------------------------------
-    # 6. 保存结果
+    # 6. 保存结果（同时保存 PNG 和 PDF）
     # ---------------------------------------------------------
     plt.figure(figsize=(8, 8))
     plt.imshow(final_result)
     plt.axis('off')
     # 去除白边，保证图片填满
+    
+    # 保存 PNG 格式
     plt.savefig(save_path, bbox_inches='tight', pad_inches=0, dpi=300)
+    
+    # 同时保存 PDF 格式（更清晰，适合论文）
+    if save_path.endswith('.png'):
+        pdf_path = save_path.replace('.png', '.pdf')
+        plt.savefig(pdf_path, bbox_inches='tight', pad_inches=0, dpi=300, format='pdf')
+        print(f"✅ Fixed visualization saved to: {save_path} (PNG) and {pdf_path} (PDF)")
+    else:
+        print(f"✅ Fixed visualization saved to: {save_path}")
+    
     plt.close()
-    print(f"✅ Fixed visualization saved to: {save_path}")
     
     return final_result
 
