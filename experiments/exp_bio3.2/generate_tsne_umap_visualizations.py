@@ -45,10 +45,11 @@ COLORS = {
     'text': '#000000',
 }
 
-# 更深的颜色版本，用于t-SNE和UMAP图，使其更鲜明
+# 更鲜明、对比度更高的颜色版本，用于t-SNE和UMAP图
+# 使用更饱和、更清晰的颜色，避免视觉混乱
 DEEPER_COLORS = {
-    'positive': '#B87A6A',  # 更深的红棕色
-    'negative': '#A8B5C6',  # 更深的蓝灰色
+    'positive': '#D32F2F',  # 鲜明的红色（更饱和，更清晰）
+    'negative': '#1976D2',  # 鲜明的蓝色（更饱和，更清晰）
 }
 
 # 标签映射
@@ -240,10 +241,10 @@ except Exception as e:
     print(f"⚠️  t-SNE 3D 生成失败: {e}")
 
 # ============================================================================
-# 3. UMAP 2D可视化
+# 3. UMAP 2D可视化（按医疗中心用不同形状标记）
 # ============================================================================
 print("\n" + "=" * 80)
-print("🎨 图表 3: UMAP 2D降维可视化")
+print("🎨 图表 3: UMAP 2D降维可视化（按医疗中心区分）")
 print("=" * 80)
 
 try:
@@ -251,33 +252,169 @@ try:
     reducer_2d = umap.UMAP(n_components=2, random_state=42, n_neighbors=15, min_dist=0.1)
     features_umap_2d = reducer_2d.fit_transform(all_features)
     
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(16, 14))  # 进一步增大图形尺寸，让marker更清晰
     fig.patch.set_facecolor(COLORS['background'])
     ax.set_facecolor(COLORS['background'])
     
-    neg_mask = feature_df['Label'] == 0
-    pos_mask = feature_df['Label'] == 1
+    # 检查是否有中心信息
+    has_center = False
+    center_col = None
+    if 'center_id' in feature_df.columns:
+        center_col = 'center_id'
+        has_center = True
+    elif 'center_name' in feature_df.columns:
+        center_col = 'center_name'
+        has_center = True
+    elif 'Center' in feature_df.columns:
+        center_col = 'Center'
+        has_center = True
     
-    # 使用更深的颜色，提高alpha和对比度，使其更鲜明
-    ax.scatter(features_umap_2d[neg_mask, 0], features_umap_2d[neg_mask, 1],
-              c=DEEPER_COLORS['negative'], label='Negative', alpha=1.0, s=75, edgecolors='white', linewidths=1.2)
-    ax.scatter(features_umap_2d[pos_mask, 0], features_umap_2d[pos_mask, 1],
-              c=DEEPER_COLORS['positive'], label='Positive', alpha=1.0, s=75, edgecolors='white', linewidths=1.2)
+    # 定义5个中心对应的marker形状
+    # 使用更明显、更容易区分的marker形状
+    center_markers = {
+        0: 'o',   # 圆形 (Circle) - 最明显
+        1: 's',   # 方形 (Square) - 很明显
+        2: '^',   # 上三角 (Upward triangle) - 明显
+        3: 'D',   # 菱形 (Diamond) - 明显
+        4: 'p',   # 五角星 (Pentagon) - 很特别，容易区分
+    }
+    
+    # 中心名称映射（如果有）
+    center_name_map = {
+        0: 'Center A',
+        1: 'Center B',
+        2: 'Center C',
+        3: 'Center D',
+        4: 'Center E',
+    }
+    
+    if has_center:
+        print(f"  📊 检测到中心信息列: {center_col}")
+        # 获取所有唯一的中心ID
+        unique_centers = sorted(feature_df[center_col].unique())
+        print(f"  📍 发现 {len(unique_centers)} 个医疗中心: {unique_centers}")
+        
+        # 为每个中心分配marker
+        center_to_marker = {}
+        center_to_name = {}
+        for idx, center_id in enumerate(unique_centers):
+            if idx < len(center_markers):
+                center_to_marker[center_id] = center_markers[idx]
+                center_to_name[center_id] = center_name_map.get(idx, f'Center {center_id}')
+            else:
+                # 如果中心数量超过5个，使用其他marker
+                extra_markers = ['*', 'p', 'h', 'H', '8']
+                center_to_marker[center_id] = extra_markers[idx - 5] if idx - 5 < len(extra_markers) else 'o'
+                center_to_name[center_id] = f'Center {center_id}'
+        
+        # 分别绘制每个中心的Negative和Positive样本
+        neg_mask = feature_df['Label'] == 0
+        pos_mask = feature_df['Label'] == 1
+        
+        # 绘制Negative样本（按中心分组）
+        # 使用统一的蓝色，不同中心用不同形状区分
+        for center_id in unique_centers:
+            center_mask = feature_df[center_col] == center_id
+            combined_mask = neg_mask & center_mask
+            
+            if np.sum(combined_mask) > 0:
+                ax.scatter(features_umap_2d[combined_mask, 0], features_umap_2d[combined_mask, 1],
+                          c=DEEPER_COLORS['negative'], 
+                          marker=center_to_marker[center_id],
+                          label=f"{center_to_name[center_id]} (Negative)",
+                          alpha=0.85, s=140,  # 稍微降低alpha，让重叠区域更清晰
+                          edgecolors='white', linewidths=2.0)  # 使用白色边框，与蓝色形成对比
+        
+        # 绘制Positive样本（按中心分组）
+        # 使用统一的红色，不同中心用不同形状区分
+        for center_id in unique_centers:
+            center_mask = feature_df[center_col] == center_id
+            combined_mask = pos_mask & center_mask
+            
+            if np.sum(combined_mask) > 0:
+                ax.scatter(features_umap_2d[combined_mask, 0], features_umap_2d[combined_mask, 1],
+                          c=DEEPER_COLORS['positive'], 
+                          marker=center_to_marker[center_id],
+                          label=f"{center_to_name[center_id]} (Positive)",
+                          alpha=0.85, s=140,  # 稍微降低alpha，让重叠区域更清晰
+                          edgecolors='white', linewidths=2.0)  # 使用白色边框，与红色形成对比
+        
+        # 创建自定义图例：按中心分组，每个中心显示两种颜色
+        # 先收集所有handles和labels
+        handles, labels = ax.get_legend_handles_labels()
+        
+        # 优化图例：分两部分显示，更清晰
+        # 第一部分：显示每个中心的marker形状（使用灰色，表示形状）
+        legend_handles = []
+        legend_labels = []
+        
+        # 中心标记（使用中性灰色，突出形状）
+        for center_id in unique_centers:
+            center_name = center_to_name[center_id]
+            marker = center_to_marker[center_id]
+            legend_handles.append(plt.Line2D([0], [0], marker=marker, color='w', 
+                                            markerfacecolor='#666666',  # 中性灰色
+                                            markersize=15,
+                                            markeredgecolor='black', 
+                                            markeredgewidth=2.0,
+                                            linestyle='None'))
+            legend_labels.append(center_name)
+        
+        # 添加分隔线
+        legend_handles.append(plt.Line2D([0], [0], linestyle='None', marker='None'))
+        legend_labels.append('─' * 15)  # 分隔线
+        
+        # 第二部分：显示类别颜色（使用圆形marker，突出颜色）
+        legend_handles.append(plt.Line2D([0], [0], marker='o', color='w', 
+                                        markerfacecolor=DEEPER_COLORS['negative'],
+                                        markersize=15, markeredgecolor='white', 
+                                        markeredgewidth=2.0, linestyle='None'))
+        legend_labels.append('Negative (Blue)')
+        
+        legend_handles.append(plt.Line2D([0], [0], marker='o', color='w', 
+                                        markerfacecolor=DEEPER_COLORS['positive'],
+                                        markersize=15, markeredgecolor='white', 
+                                        markeredgewidth=2.0, linestyle='None'))
+        legend_labels.append('Positive (Red)')
+        
+        # 显示图例（单列布局，更清晰）
+        ax.legend(legend_handles, legend_labels, loc='upper right', fontsize=11, 
+                 framealpha=0.95, ncol=1, columnspacing=1.0, handletextpad=1.2,
+                 markerscale=1.2,
+                 borderpad=0.8,
+                 title='Legend', title_fontsize=12)  # 添加图例标题
+        
+    else:
+        print("  ⚠️  未检测到中心信息，使用默认绘制方式（仅按类别区分）")
+        # 如果没有中心信息，使用原来的方式
+        neg_mask = feature_df['Label'] == 0
+        pos_mask = feature_df['Label'] == 1
+        
+        ax.scatter(features_umap_2d[neg_mask, 0], features_umap_2d[neg_mask, 1],
+                  c=DEEPER_COLORS['negative'], label='Negative', alpha=1.0, s=75, 
+                  edgecolors='white', linewidths=1.2, marker='o')
+        ax.scatter(features_umap_2d[pos_mask, 0], features_umap_2d[pos_mask, 1],
+                  c=DEEPER_COLORS['positive'], label='Positive', alpha=1.0, s=75, 
+                  edgecolors='white', linewidths=1.2, marker='o')
+        ax.legend(loc='best', fontsize=10, framealpha=0.9)
     
     ax.set_xlabel('UMAP Component 1', fontsize=12, fontweight='bold')
     ax.set_ylabel('UMAP Component 2', fontsize=12, fontweight='bold')
-    ax.set_title('UMAP 2D Visualization (Uniform Manifold Approximation and Projection)', 
-                fontsize=14, fontweight='bold', pad=20)
-    ax.legend(loc='best', fontsize=10, framealpha=0.9)
+    title_text = 'UMAP 2D Visualization (Uniform Manifold Approximation and Projection)'
+    if has_center:
+        title_text += '\n(Markers indicate different medical centers)'
+    ax.set_title(title_text, fontsize=14, fontweight='bold', pad=20)
     ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
     
     plt.tight_layout()
     plt.savefig(FIGURES_DIR / 'UMAP_2D.png', dpi=300, bbox_inches='tight', facecolor=COLORS['background'])
     plt.savefig(FIGURES_DIR / 'UMAP_2D.pdf', dpi=300, bbox_inches='tight', facecolor=COLORS['background'])
     plt.close()
-    print("✅ UMAP 2D 已生成")
+    print("✅ UMAP 2D 已生成（按医疗中心区分）")
 except Exception as e:
     print(f"⚠️  UMAP 2D 生成失败: {e}")
+    import traceback
+    traceback.print_exc()
 
 # ============================================================================
 # 4. UMAP 3D可视化

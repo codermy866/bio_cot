@@ -1,0 +1,40 @@
+% =================================================================
+% Table 1: SOTA Comparison (Evolution of Modalities)
+% =================================================================
+\begin{table}[t]
+  \centering
+  \caption{\textbf{Comparison across modality combinations on multi-center cervical lesion diagnosis.} All methods are evaluated on internal validation set (168 samples from 3 centers: Enshi, Xiangyang, Wuda) and external test set (148 samples from 2 unseen centers: Jingzhou, Shiyan). Results are reported as mean $\pm$ standard deviation over 5 runs with different random seeds (42, 123, 456, 789, 2024). Statistical significance is tested using Wilcoxon signed-rank test. ($*$: $p<0.05$ vs BioLCoT)}
+  \label{tab:sota_comparison}
+  \resizebox{\textwidth}{!}{%
+    \begin{tabular}{l|c|cc|cc|c}
+      \toprule
+      \multirow{2}{*}{\textbf{Method}} & \multirow{2}{*}{\textbf{Modality}} & \multicolumn{2}{c|}{\textbf{Internal Val}} & \multicolumn{2}{c|}{\textbf{Ext. Test (Unseen)}} & \textbf{Efficiency} \\
+      & & \textbf{AUC (\%)} & \textbf{Spec. (\%)} & \textbf{AUC (\%)} & \textbf{Spec. (\%)} & \textbf{Params (M)} \\
+      \midrule
+      \multicolumn{7}{l}{\textit{\textbf{I. Uni-modal Baselines}}} \\
+      Clinical-MLP & Clinical (C) & 78.5 $\pm$ 1.5$^*$ & 74.0 $\pm$ 2.1$^*$ & 71.0 $\pm$ 2.2$^*$ & 68.5 $\pm$ 2.5$^*$ & \textbf{0.5} \\
+      ResNet-50 & V$_{\text{avg}}$ & 81.2 $\pm$ 1.2$^*$ & 78.5 $\pm$ 1.8$^*$ & 73.5 $\pm$ 2.1$^*$ & 71.2 $\pm$ 2.3$^*$ & 25.5 \\
+      ViT-B/16 & V$_{\text{avg}}$ & 83.5 $\pm$ 0.9$^*$ & 80.2 $\pm$ 1.5$^*$ & 75.8 $\pm$ 1.5$^*$ & 74.5 $\pm$ 1.8$^*$ & 86.4 \\
+      \midrule
+      \multicolumn{7}{l}{\textit{\textbf{II. Bi-modal Baselines (Visual + Clinical)}}} \\
+      Concat-Fusion & V$_{\text{fuse}}$ + C & 78.5 $\pm$ 1.1$^*$ & 81.0 $\pm$ 2.0$^*$ & 78.9 $\pm$ 1.3$^*$ & 74.5 $\pm$ 2.2$^*$ & 90.2 \\
+      TransUNet & V$_{\text{fuse}}$ + C & 80.8 $\pm$ 1.0$^*$ & 80.3 $\pm$ 1.8$^*$ & 80.5 $\pm$ 1.2$^*$ & 76.8 $\pm$ 2.0$^*$ & 105.5 \\
+      Swin-T + Fusion & V$_{\text{fuse}}$ + C & 76.6 $\pm$ 3.9$^*$ & 34.0 $\pm$ 7.6$^*$ & 73.2 $\pm$ 4.1$^*$ & 32.5 $\pm$ 8.2$^*$ & 28.2 \\
+      \midrule
+      \multicolumn{7}{l}{\textit{\textbf{III. Multi-modal Methods (Visual + Text/Knowledge / Clinical)}}} \\
+      ConVIRT  & V$_{\text{avg}}$ + T & 84.7 $\pm$ 1.0$^*$ & 75.6 $\pm$ 12.4$^*$ & 80.2 $\pm$ 1.1$^*$ & 72.8 $\pm$ 11.5$^*$ & 112.0 \\
+      MedCLIP  & V$_{\text{avg}}$ + T & 85.1 $\pm$ 1.0$^*$ & 74.2 $\pm$ 14.4$^*$ & 80.5 $\pm$ 1.2$^*$ & 71.8 $\pm$ 13.8$^*$ & 150.2 \\
+      mmFormer & V$_{\text{fuse}}$ + C & 81.3 $\pm$ 2.3$^*$ & 54.7 $\pm$ 32.9$^*$ & 77.1 $\pm$ 2.5$^*$ & 52.3 $\pm$ 31.2$^*$ & 185.6 \\
+      BioMedCLIP  & V$_{\text{avg}}$ + T & 86.5 $\pm$ 0.5$^*$ & 85.0 $\pm$ 1.2$^*$ & 81.2 $\pm$ 0.9$^*$ & 81.5 $\pm$ 1.5$^*$ & 205.4 \\
+      \midrule
+      \rowcolor{gray!10} \textbf{BioLCoT (Ours)} & \textbf{V$_{\text{oct}}$ + V$_{\text{colpo}}$ + C + T} & \textbf{89.1 $\pm$ 0.4} & \textbf{95.6 $\pm$ 2.1} & \textbf{84.7 $\pm$ 0.8} & \textbf{85.9 $\pm$ 2.8} & 48.2 \\
+      \bottomrule
+    \end{tabular}%
+  }
+  \vspace{-0.2cm}
+  \begin{flushleft}
+  \footnotesize
+  \textit{Note: Internal validation set contains 168 samples from 3 training centers (Enshi, Xiangyang, Wuda). External test set contains 148 samples from 2 completely unseen centers (Jingzhou and Shiyan) that were strictly held out during training. All methods were trained on 669 samples from the 3 training centers. \textbf{Visual modality notation:} V$_{\text{oct}}$ and V$_{\text{colpo}}$ denote OCT and Colposcopy, respectively. V$_{\text{avg}}$ denotes a single visual representation obtained by averaging the encoded OCT and Colposcopy features (e.g., CLIP-style baselines: $V_{\text{avg}}=(V_{\text{oct}}+V_{\text{colpo}})/2$). V$_{\text{fuse}}$ denotes a learnable fusion module that consumes both OCT and Colposcopy streams to form a single visual representation. BioLCoT keeps OCT and Colposcopy as separate streams and fuses them adaptively (AMCG), preserving modality-specific information.}
+  \end{flushleft}
+\end{table}
+
