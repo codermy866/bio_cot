@@ -1,0 +1,38 @@
+% =================================================================
+% Integrated Table: External Centers (D & E) + Ablation
+% =================================================================
+\begin{table}[t]
+  \centering
+  \caption{\textbf{Comprehensive Performance Analysis: Competitive Baselines and Ablation Study on External Centers.} All methods are evaluated on external test centers D and E (completely held out during training). Results are reported as mean $\pm$ standard deviation over 5 runs. The upper section compares BioLCoT against competitive baselines, while the lower section quantifies the contribution of each module (A: Knowledge, B: Reasoning, C: Reliability). ($*$: $p<0.05$ vs Full BioLCoT)}
+  \label{tab:integrated_ablation_center}
+  \resizebox{\textwidth}{!}{%
+    \begin{tabular}{l|l|ccccc|cc|c}
+      \toprule
+      \multirow{2}{*}{\textbf{Method / Variant}} & \multirow{2}{*}{\textbf{Modality}} & \multicolumn{5}{c|}{\textbf{External Aggregate Metrics (\%)}} & \multicolumn{2}{c|}{\textbf{Center AUC (\%)}} & \textbf{Perf. Gap} \\
+      \cmidrule{3-9}
+      & & \textbf{AUC} & \textbf{Acc.} & \textbf{Sens.} & \textbf{Spec.} & \textbf{F1} & \textbf{Center D} & \textbf{Center E} & \textbf{$\Delta$ AUC} \\
+      \midrule
+      \multicolumn{10}{l}{\textit{\textbf{I. Baseline Methods (External Test Centers D \& E)}}} \\
+      \midrule
+      ViT-B/16 & V$_{\text{avg}}$ & 74.3 $\pm$ 3.3$^*$ & 69.3 $\pm$ 3.8$^*$ & 61.8 $\pm$ 3.6$^*$ & 74.5 $\pm$ 3.7$^*$ & 64.5 $\pm$ 4.0$^*$ & 77.5 & 71.0 & \textcolor{red}{-10.4} \\
+      TransUNet & V$_{\text{fuse}}$ + C & 80.3 $\pm$ 1.8$^*$ & 75.3 $\pm$ 3.3$^*$ & 69.7 $\pm$ 3.2$^*$ & 79.4 $\pm$ 3.2$^*$ & 72.5 $\pm$ 2.7$^*$ & 82.0 & 78.5 & \textcolor{red}{-4.4} \\
+      BioMedCLIP & V$_{\text{avg}}$ + T & 82.0 $\pm$ 1.5$^*$ & 78.8 $\pm$ 2.3$^*$ & 73.9 $\pm$ 2.7$^*$ & 82.7 $\pm$ 2.2$^*$ & 76.7 $\pm$ 2.2$^*$ & 83.5 & 80.5 & \textcolor{red}{-2.7} \\
+      \midrule
+      \multicolumn{10}{l}{\textit{\textbf{II. BioLCoT Ablation Variants (External Test Centers D \& E)}}} \\
+      \midrule
+      Baseline (ViT + MLP) & V$_{\text{fuse}}$ + C & 75.8 $\pm$ 2.2$^*$ & 71.2 $\pm$ 3.1$^*$ & 65.4 $\pm$ 3.8$^*$ & 74.5 $\pm$ 2.8$^*$ & 68.2 $\pm$ 3.2$^*$ & 78.8 & 72.8 & \textcolor{red}{-8.9} \\
+      w/o \textbf{Module B} & V$_{\text{multi}}$ + C + T & 80.5 $\pm$ 1.5$^*$ & 78.8 $\pm$ 2.0$^*$ & 75.2 $\pm$ 2.8$^*$ & 80.2 $\pm$ 2.2$^*$ & 76.8 $\pm$ 2.3$^*$ & 82.4 & 79.2 & \textcolor{red}{-4.2} \\
+      w/o \textbf{Module A} & V$_{\text{multi}}$ + C + T & 82.5 $\pm$ 1.1$^*$ & 80.2 $\pm$ 1.8$^*$ & 78.5 $\pm$ 2.2$^*$ & 83.2 $\pm$ 1.9$^*$ & 79.5 $\pm$ 2.0$^*$ & 84.1 & 81.5 & \textcolor{red}{-2.2} \\
+      w/o \textbf{Module C} & V$_{\text{multi}}$ + C + T & 82.8 $\pm$ 1.0$^*$ & 80.5 $\pm$ 1.7$^*$ & 78.8 $\pm$ 2.1$^*$ & 83.5 $\pm$ 1.8$^*$ & 79.8 $\pm$ 1.9$^*$ & 85.0 & 82.1 & \textcolor{red}{-1.9} \\
+      \midrule
+      \rowcolor{gray!10} \textbf{Full BioLCoT} & \textbf{V$_{\text{multi}}$ + C + T} & \textbf{84.7 $\pm$ 0.8} & \textbf{82.5 $\pm$ 1.5} & \textbf{81.6 $\pm$ 2.1} & \textbf{85.9 $\pm$ 2.8} & \textbf{83.1 $\pm$ 1.8} & \textbf{86.2} & \textbf{83.2} & \textbf{--} \\
+      \bottomrule
+    \end{tabular}%
+  }
+  \vspace{0.1cm}
+  \begin{flushleft}
+    \footnotesize
+    \textit{Note: External test centers D (Jingzhou) and E (Shiyan) contain 148 samples strictly held out during training. \textbf{Visual modality notation:} V$_{\text{oct}}$ and V$_{\text{colpo}}$ denote OCT and Colposcopy, respectively. V$_{\text{avg}}$ denotes simple averaging of encoded OCT and Colposcopy features ($V_{\text{avg}}=(V_{\text{oct}}+V_{\text{colpo}})/2$; CLIP-style baselines). V$_{\text{fuse}}$ denotes a learnable fusion module producing a single visual representation from both OCT and Colposcopy streams. V$_{\text{multi}}$ denotes explicit multi-stream modeling of OCT and Colposcopy (separate streams with adaptive fusion). \textbf{Module A (Knowledge)} integrates VLM knowledge via trainable adapters; \textbf{Module B (Reasoning)} implements adaptive modality gating (AMCG); \textbf{Module C (Reliability)} provides noise-aware hierarchical fusion (NA-mHC).}
+  \end{flushleft}
+\end{table}
+
